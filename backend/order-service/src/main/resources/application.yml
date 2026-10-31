@@ -1,0 +1,29 @@
+server:
+  port: ${SERVER_PORT:8081}
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/pos01_orders}
+    username: ${DB_USERNAME:order_app}
+    password: ${DB_PASSWORD:order_demo}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${DB_SCHEMA:pos01}
+  flyway:
+    enabled: true
+    create-schemas: true
+    default-schema: ${DB_SCHEMA:pos01}
+    schemas: ${DB_SCHEMA:pos01}
+site:
+  id: ${SITE_ID:POS01}
+  source-type: ${SOURCE_TYPE:POS}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

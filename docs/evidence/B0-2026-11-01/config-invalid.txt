@@ -1,0 +1,66 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.2)
+
+2026-11-01T01:07:53.906+07:00  INFO 61864 --- [order-service] [           main] v.e.o.order.OrderServiceApplication      : Starting OrderServiceApplication v0.0.1-SNAPSHOT using Java 25.0.4.1 with PID 61864 (D:\distributed-order-system\backend\order-service\target\order-service-0.0.1-SNAPSHOT.jar started by thanh in D:\distributed-order-system\backend)
+2026-11-01T01:07:53.909+07:00  INFO 61864 --- [order-service] [           main] v.e.o.order.OrderServiceApplication      : No active profile set, falling back to 1 default profile: "default"
+2026-11-01T01:07:54.908+07:00  INFO 61864 --- [order-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-11-01T01:07:54.967+07:00  INFO 61864 --- [order-service] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 46 ms. Found 1 JPA repository interface.
+2026-11-01T01:07:56.103+07:00  INFO 61864 --- [order-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-11-01T01:07:56.384+07:00  INFO 61864 --- [order-service] [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@18d003cd
+2026-11-01T01:07:56.386+07:00  INFO 61864 --- [order-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-11-01T01:07:56.412+07:00  INFO 61864 --- [order-service] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5433/pos01_orders (PostgreSQL 18.6)
+2026-11-01T01:07:56.552+07:00  INFO 61864 --- [order-service] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 3 migrations (execution time 00:00.047s)
+2026-11-01T01:07:56.648+07:00  INFO 61864 --- [order-service] [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "b0_test": 2
+2026-11-01T01:07:56.662+07:00  INFO 61864 --- [order-service] [           main] o.f.core.internal.command.DbMigrate      : Schema "b0_test" is up to date. No migration necessary.
+2026-11-01T01:07:56.923+07:00  INFO 61864 --- [order-service] [           main] org.hibernate.orm.jpa                    : HHH008540: Processing PersistenceUnitInfo [name: default]
+2026-11-01T01:07:57.028+07:00  INFO 61864 --- [order-service] [           main] org.hibernate.orm.core                   : HHH000001: Hibernate ORM core version 7.4.13.Final
+2026-11-01T01:07:57.623+07:00  INFO 61864 --- [order-service] [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-11-01T01:07:57.777+07:00  INFO 61864 --- [order-service] [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [jdbc:postgresql://localhost:5433/pos01_orders]
+	Database driver: PostgreSQL JDBC Driver
+	Database dialect: PostgreSQLDialect
+	Database version: 18.6
+	Default catalog/schema: pos01_orders/public
+	Autocommit mode: undefined/unknown
+	Isolation level: READ_COMMITTED [default READ_COMMITTED]
+	JDBC fetch size: none
+	Pool: DataSourceConnectionProvider
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-11-01T01:07:58.832+07:00  INFO 61864 --- [order-service] [           main] org.hibernate.orm.core                   : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-11-01T01:07:58.888+07:00  INFO 61864 --- [order-service] [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-11-01T01:07:58.972+07:00  INFO 61864 --- [order-service] [           main] o.s.d.j.r.query.QueryEnhancerFactories   : Hibernate is in classpath; If applicable, HQL parser will be used.
+2026-11-01T01:07:59.203+07:00  WARN 61864 --- [order-service] [           main] s.c.a.AnnotationConfigApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.boot.context.properties.ConfigurationPropertiesBindException: Error creating bean with name 'site-vn.edu.orders.order.config.SiteProperties': Could not bind properties to 'SiteProperties' : prefix=site, ignoreInvalidFields=false, ignoreUnknownFields=true
+2026-11-01T01:07:59.204+07:00  INFO 61864 --- [order-service] [           main] j.LocalContainerEntityManagerFactoryBean : Closing JPA EntityManagerFactory for persistence unit 'default'
+2026-11-01T01:07:59.206+07:00  INFO 61864 --- [order-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-11-01T01:07:59.207+07:00  INFO 61864 --- [order-service] [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-11-01T01:07:59.219+07:00  INFO 61864 --- [order-service] [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-11-01T01:07:59.237+07:00 ERROR 61864 --- [order-service] [           main] o.s.b.d.LoggingFailureAnalysisReporter   : 
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Binding to target vn.edu.orders.order.config.SiteProperties failed:
+
+    Property: site.id
+    Value: "invalid"
+    Origin: System Environment Property "SITE_ID"
+    Reason: must match "[A-Z][A-Z0-9_]{0,49}"
+
+
+Action:
+
+Update your application's configuration
+

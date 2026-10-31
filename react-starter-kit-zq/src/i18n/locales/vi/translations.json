@@ -1,0 +1,19 @@
+{
+  "nav": {
+    "dashboards": {
+      "dashboards": "Tổng quan",
+      "home": "Trang chủ"
+    },
+    "settings": {
+      "settings": "Cài đặt",
+      "general": "Chung",
+      "appearance": "Giao diện"
+    }
+  },
+  "common": {
+    "collapseSidebar": "Thu gọn thanh bên",
+    "expandSidebar": "Mở rộng thanh bên",
+    "closeMenu": "Đóng menu",
+    "openMenu": "Mở menu"
+  }
+}

@@ -1,0 +1,19 @@
+name: distributed-order-base
+services:
+  pos01-db:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: pos01_orders
+      POSTGRES_USER: order_app
+      POSTGRES_PASSWORD: order_demo
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pos01-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U order_app -d pos01_orders"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  pos01-data:

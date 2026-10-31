@@ -1,0 +1,13 @@
+ dish_id |  name   | active 
+---------+---------+--------
+ CHAO_GA | Cháo gà | t
+ COM_GA  | Cơm gà  | t
+(2 rows)
+
+ version |         description          | success 
+---------+------------------------------+---------
+         | << Flyway Schema Creation >> | t
+ 1       | create menu items            | t
+ 2       | seed demo menu               | t
+(3 rows)
+
