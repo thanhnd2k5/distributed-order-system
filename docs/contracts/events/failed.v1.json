@@ -1,0 +1,13 @@
+{
+  "eventId": "70df3a53-554a-4918-b691-23336a0e48e0",
+  "schemaVersion": 1,
+  "eventType": "Failed",
+  "orderId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+  "sourceType": "POS",
+  "sourceSiteId": "POS01",
+  "occurredAt": "2026-11-07T06:00:01Z",
+  "payload": {
+    "reasonCode": "INSUFFICIENT_INGREDIENT",
+    "reasonMessage": "Không đủ nguyên liệu để giữ cho đơn."
+  }
+}

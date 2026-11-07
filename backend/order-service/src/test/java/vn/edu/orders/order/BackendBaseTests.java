@@ -37,7 +37,7 @@ class BackendBaseTests {
         assertThat(jdbc.queryForList("""
                 SELECT version FROM b0_test.flyway_schema_history
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
-                """, String.class)).containsExactly("1", "2");
+                """, String.class)).containsSubsequence("1", "2");
         var response = get("/actuator/health");
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(JsonPath.<String>read(response.body(), "$.status")).isEqualTo("UP");

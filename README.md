@@ -10,6 +10,7 @@ Mục tiêu là triển khai và chứng minh các cơ chế phân tán bằng n
 - Frontend có sẵn: `react-starter-kit-zq/`, dùng React và JavaScript.
 - Backend đã chọn hướng Java và Spring Boot; PostgreSQL và Kafka kế thừa tài liệu dự án.
 - Base backend B0: `backend/` và `infra/compose.base.yaml`; xem [cách chạy local](backend/README.md).
+- Luồng B1 tạo/đọc đơn và ghi outbox đã có trong Order Service. Xem [contract và cách chia việc](docs/TEAM_START.md).
 
 Tài liệu ngày 30/10/2026 là bản thiết kế triển khai v0.1. Những lựa chọn kỹ thuật bổ sung được đánh dấu là đề xuất để nhóm rà soát; tài liệu chưa phải bằng chứng hệ thống đã được triển khai hoặc kiểm thử.
 

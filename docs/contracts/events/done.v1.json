@@ -1,0 +1,13 @@
+{
+  "eventId": "42a63ecc-c3ee-43c1-ae76-8c95f6c6bca0",
+  "schemaVersion": 1,
+  "eventType": "Done",
+  "orderId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+  "sourceType": "POS",
+  "sourceSiteId": "POS01",
+  "occurredAt": "2026-11-07T06:02:00Z",
+  "payload": {
+    "ticketId": "8b379d19-3fd5-42a1-b7d3-a94b380921bd",
+    "completedAt": "2026-11-07T06:02:00Z"
+  }
+}

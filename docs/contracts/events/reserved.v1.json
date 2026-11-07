@@ -1,0 +1,15 @@
+{
+  "eventId": "a052f6f5-8fe2-43cf-8e82-59dfcf580239",
+  "schemaVersion": 1,
+  "eventType": "Reserved",
+  "orderId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+  "sourceType": "POS",
+  "sourceSiteId": "POS01",
+  "occurredAt": "2026-11-07T06:00:01Z",
+  "payload": {
+    "reservationId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+    "items": [
+      { "lineNo": 1, "dishId": "COM_GA", "dishName": "Cơm gà", "quantity": 2 }
+    ]
+  }
+}
