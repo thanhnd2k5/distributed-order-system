@@ -20,6 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        "outbox.enabled=false",
         "spring.jpa.properties.hibernate.default_schema=b1_test",
         "spring.flyway.default-schema=b1_test",
         "spring.flyway.schemas=b1_test",

@@ -1,0 +1,27 @@
+﻿=== Scenario 2: Full Kafka cluster outage ===
+Stopping kafka-1, kafka-2, kafka-3...
+NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
+clientRequestId=e502dc53-68d0-4dad-a8dc-80c468beec62
+POST during Kafka outage: status=201 body={"orderId":"2ca946ff-675c-4213-a550-1d2cae9ded80","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-10T17:22:45.389120Z"}
+--- SQL during Kafka outage (after 6s) ---
+               order_id               |      status       
+--------------------------------------+-------------------
+ 2ca946ff-675c-4213-a550-1d2cae9ded80 | PENDING_INVENTORY
+(1 row)
+
+               event_id               |             aggregate_id             | attempt_count | sent |          created_at          |        next_attempt_at        
+--------------------------------------+--------------------------------------+---------------+------+------------------------------+-------------------------------
+ 3350abf2-836c-4d7e-a653-89a297769f81 | 2ca946ff-675c-4213-a550-1d2cae9ded80 |             1 | f    | 2026-11-10 17:22:45.38912+00 | 2026-11-10 17:22:51.888867+00
+(1 row)
+
+--- Starting Kafka cluster back up ---
+NAME                                IMAGE                COMMAND                  SERVICE   CREATED      STATUS                   PORTS
+distributed-order-kafka-kafka-1-1   apache/kafka:4.1.2   "/__cacert_entrypoin…"   kafka-1   3 days ago   Up 8 seconds (healthy)   127.0.0.1:19092->9094/tcp
+distributed-order-kafka-kafka-2-1   apache/kafka:4.1.2   "/__cacert_entrypoin…"   kafka-2   3 days ago   Up 9 seconds (healthy)   127.0.0.1:19093->9094/tcp
+distributed-order-kafka-kafka-3-1   apache/kafka:4.1.2   "/__cacert_entrypoin…"   kafka-3   3 days ago   Up 9 seconds (healthy)   127.0.0.1:19094->9094/tcp
+--- SQL after Kafka recovery ---
+               event_id               |             aggregate_id             | attempt_count | sent |          created_at          |            sent_at            
+--------------------------------------+--------------------------------------+---------------+------+------------------------------+-------------------------------
+ 3350abf2-836c-4d7e-a653-89a297769f81 | 2ca946ff-675c-4213-a550-1d2cae9ded80 |             4 | t    | 2026-11-10 17:22:45.38912+00 | 2026-11-10 17:23:21.421056+00
+(1 row)
+

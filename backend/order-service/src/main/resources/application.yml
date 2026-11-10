@@ -25,6 +25,19 @@ spring:
     create-schemas: true
     default-schema: ${DB_SCHEMA:pos01}
     schemas: ${DB_SCHEMA:pos01}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092,localhost:19093,localhost:19094}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        "[enable.idempotence]": true
+        "[max.block.ms]": 2000
+        "[request.timeout.ms]": 2000
+        "[delivery.timeout.ms]": 5000
+outbox:
+  enabled: ${OUTBOX_ENABLED:false}
 site:
   id: ${SITE_ID:POS01}
   source-type: ${SOURCE_TYPE:POS}

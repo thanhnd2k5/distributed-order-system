@@ -1,0 +1,16 @@
+﻿Partition:1	Offset:0	ed1c302c-8871-4461-bbf6-5114c5883fd9	{"eventId": "d4adb5e8-d9da-4960-81c8-56ca57b6accd", "orderId": "ed1c302c-8871-4461-bbf6-5114c5883fd9", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 2}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-10T17:22:31.735343Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:0	Offset:0	7b20927a-fc92-4998-82cc-003c24a581db	{"eventId": "e093bf95-12f0-4fa9-9c9d-1a4b35e2c08f", "orderId": "7b20927a-fc92-4998-82cc-003c24a581db", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 2}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-07T06:42:28.319250Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:0	Offset:1	a7cdff29-154f-47c2-a4a9-45222ad030de	{"eventId": "3690b9a0-a1c6-42c5-8b28-5e164413efc7", "orderId": "a7cdff29-154f-47c2-a4a9-45222ad030de", "payload": {"items": [{"dishId": "CHAO_GA", "lineNo": 1, "dishName": "Cháo gà", "quantity": 3}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-10T17:23:47.213600Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:0	Offset:2	e62b5409-d937-4cba-ab2a-a8844f468150	{"eventId": "4723464d-4d33-40a5-ac00-d87ec1e92d50", "orderId": "e62b5409-d937-4cba-ab2a-a8844f468150", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 1}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-10T17:24:34.232162Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:2	Offset:0	add87559-4590-4462-9b47-2963b349d9ce	{"eventId": "9f075281-0a43-4b88-8ecf-1e7078188a12", "orderId": "add87559-4590-4462-9b47-2963b349d9ce", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 2}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-07T06:42:11.566442Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:2	Offset:1	2ca946ff-675c-4213-a550-1d2cae9ded80	{"eventId": "3350abf2-836c-4d7e-a653-89a297769f81", "orderId": "2ca946ff-675c-4213-a550-1d2cae9ded80", "payload": {"items": [{"dishId": "CHAO_GA", "lineNo": 1, "dishName": "Cháo gà", "quantity": 1}, {"dishId": "COM_GA", "lineNo": 2, "dishName": "Cơm gà", "quantity": 1}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-10T17:22:45.389120Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+docker : [2026-11-10 17:25:13,940] ERROR Error processing message, terminating consumer process:  
+(org.apache.kafka.tools.consumer.ConsoleConsumer)
+At line:1 char:122
++ ... } catch {}; docker compose -f infra/compose.kafka.yaml exec -T kafka- ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([2026-11-10 17:...onsoleConsumer):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+org.apache.kafka.common.errors.TimeoutException
+Processed a total of 6 messages

@@ -1,0 +1,15 @@
+﻿=== Scenario 1: Happy path + HTTP retry ===
+clientRequestId=f1e0001e-ecf8-4aca-a9a7-78a19b8667cf
+POST #1 status=201 Location=/api/orders/ed1c302c-8871-4461-bbf6-5114c5883fd9 body={"orderId":"ed1c302c-8871-4461-bbf6-5114c5883fd9","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-10T17:22:31.735343Z"}
+POST #2 (retry) status=200 Location=/api/orders/ed1c302c-8871-4461-bbf6-5114c5883fd9 body={"orderId":"ed1c302c-8871-4461-bbf6-5114c5883fd9","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-10T17:22:31.735343Z"}
+--- SQL after 2s ---
+               order_id               |      status       | site_id | source_type 
+--------------------------------------+-------------------+---------+-------------
+ ed1c302c-8871-4461-bbf6-5114c5883fd9 | PENDING_INVENTORY | POS01   | POS
+(1 row)
+
+               event_id               |             aggregate_id             |  event_type  |    topic     |             message_key              | attempt_count | sent |            sent_at            
+--------------------------------------+--------------------------------------+--------------+--------------+--------------------------------------+---------------+------+-------------------------------
+ d4adb5e8-d9da-4960-81c8-56ca57b6accd | ed1c302c-8871-4461-bbf6-5114c5883fd9 | OrderCreated | order-events | ed1c302c-8871-4461-bbf6-5114c5883fd9 |             0 | t    | 2026-11-10 17:22:33.545921+00
+(1 row)
+

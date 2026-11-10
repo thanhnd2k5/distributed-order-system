@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 // Uses the local PostgreSQL from compose.base.yaml, in a separate test schema.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        "outbox.enabled=false",
         "spring.jpa.properties.hibernate.default_schema=b0_test",
         "spring.flyway.default-schema=b0_test",
         "spring.flyway.schemas=b0_test"

@@ -1,0 +1,39 @@
+﻿ version |         description          | success 
+---------+------------------------------+---------
+         | << Flyway Schema Creation >> | t
+ 1       | create menu items            | t
+ 2       | seed demo menu               | t
+ 3       | create orders and outbox     | t
+(4 rows)
+
+               order_id               |          client_request_id           |      status       | site_id | source_type |          created_at           
+--------------------------------------+--------------------------------------+-------------------+---------+-------------+-------------------------------
+ add87559-4590-4462-9b47-2963b349d9ce | 62942e84-da22-4858-9a22-51e4c1dda526 | PENDING_INVENTORY | POS01   | POS         | 2026-11-07 06:42:11.566442+00
+ 7b20927a-fc92-4998-82cc-003c24a581db | 86d8c848-747e-4bd8-a545-8189405c9aeb | PENDING_INVENTORY | POS01   | POS         | 2026-11-07 06:42:28.31925+00
+ ed1c302c-8871-4461-bbf6-5114c5883fd9 | f1e0001e-ecf8-4aca-a9a7-78a19b8667cf | PENDING_INVENTORY | POS01   | POS         | 2026-11-10 17:22:31.735343+00
+ 2ca946ff-675c-4213-a550-1d2cae9ded80 | e502dc53-68d0-4dad-a8dc-80c468beec62 | PENDING_INVENTORY | POS01   | POS         | 2026-11-10 17:22:45.38912+00
+ a7cdff29-154f-47c2-a4a9-45222ad030de | abc03f68-8708-4e95-9cbd-9a71e42fc028 | PENDING_INVENTORY | POS01   | POS         | 2026-11-10 17:23:47.2136+00
+ e62b5409-d937-4cba-ab2a-a8844f468150 | 4d665c56-7cc5-4452-bede-65ee64647f81 | PENDING_INVENTORY | POS01   | POS         | 2026-11-10 17:24:34.232162+00
+(6 rows)
+
+               order_id               | line_no | dish_id | dish_name_snapshot | quantity 
+--------------------------------------+---------+---------+--------------------+----------
+ 2ca946ff-675c-4213-a550-1d2cae9ded80 |       1 | CHAO_GA | Cháo gà            |        1
+ 2ca946ff-675c-4213-a550-1d2cae9ded80 |       2 | COM_GA  | Cơm gà             |        1
+ 7b20927a-fc92-4998-82cc-003c24a581db |       1 | COM_GA  | Cơm gà             |        2
+ a7cdff29-154f-47c2-a4a9-45222ad030de |       1 | CHAO_GA | Cháo gà            |        3
+ add87559-4590-4462-9b47-2963b349d9ce |       1 | COM_GA  | Cơm gà             |        2
+ e62b5409-d937-4cba-ab2a-a8844f468150 |       1 | COM_GA  | Cơm gà             |        1
+ ed1c302c-8871-4461-bbf6-5114c5883fd9 |       1 | COM_GA  | Cơm gà             |        2
+(7 rows)
+
+               event_id               |             aggregate_id             |  event_type  |    topic     |             message_key              | attempt_count | sent |          created_at           |            sent_at            
+--------------------------------------+--------------------------------------+--------------+--------------+--------------------------------------+---------------+------+-------------------------------+-------------------------------
+ 9f075281-0a43-4b88-8ecf-1e7078188a12 | add87559-4590-4462-9b47-2963b349d9ce | OrderCreated | order-events | add87559-4590-4462-9b47-2963b349d9ce |             3 | t    | 2026-11-07 06:42:11.566442+00 | 2026-11-07 06:42:25.998635+00
+ e093bf95-12f0-4fa9-9c9d-1a4b35e2c08f | 7b20927a-fc92-4998-82cc-003c24a581db | OrderCreated | order-events | 7b20927a-fc92-4998-82cc-003c24a581db |             0 | t    | 2026-11-07 06:42:28.31925+00  | 2026-11-07 06:42:28.606431+00
+ d4adb5e8-d9da-4960-81c8-56ca57b6accd | ed1c302c-8871-4461-bbf6-5114c5883fd9 | OrderCreated | order-events | ed1c302c-8871-4461-bbf6-5114c5883fd9 |             0 | t    | 2026-11-10 17:22:31.735343+00 | 2026-11-10 17:22:33.545921+00
+ 3350abf2-836c-4d7e-a653-89a297769f81 | 2ca946ff-675c-4213-a550-1d2cae9ded80 | OrderCreated | order-events | 2ca946ff-675c-4213-a550-1d2cae9ded80 |             4 | t    | 2026-11-10 17:22:45.38912+00  | 2026-11-10 17:23:21.421056+00
+ 3690b9a0-a1c6-42c5-8b28-5e164413efc7 | a7cdff29-154f-47c2-a4a9-45222ad030de | OrderCreated | order-events | a7cdff29-154f-47c2-a4a9-45222ad030de |             0 | t    | 2026-11-10 17:23:47.2136+00   | 2026-11-10 17:23:47.669361+00
+ 4723464d-4d33-40a5-ac00-d87ec1e92d50 | e62b5409-d937-4cba-ab2a-a8844f468150 | OrderCreated | order-events | e62b5409-d937-4cba-ab2a-a8844f468150 |             0 | t    | 2026-11-10 17:24:34.232162+00 | 2026-11-10 17:24:34.571665+00
+(6 rows)
+

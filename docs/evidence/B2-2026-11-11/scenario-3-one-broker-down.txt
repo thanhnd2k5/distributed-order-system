@@ -1,0 +1,60 @@
+﻿=== Scenario 3: Single broker (kafka-3) outage ===
+--- Topic before stopping kafka-3 ---
+Topic: order-events	TopicId: K65rQBaOT0KG7SDP3SSIZw	PartitionCount: 3	ReplicationFactor: 3	Configs: min.insync.replicas=2
+	Topic: order-events	Partition: 0	Leader: 2	Replicas: 2,3,1	Isr: 2,3,1	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 1	Leader: 2	Replicas: 3,1,2	Isr: 2,1,3	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 2	Leader: 2	Replicas: 1,2,3	Isr: 2,1,3	Elr: 	LastKnownElr: 
+--- Topic while kafka-3 is stopped ---
+Topic: order-events	TopicId: K65rQBaOT0KG7SDP3SSIZw	PartitionCount: 3	ReplicationFactor: 3	Configs: min.insync.replicas=2
+	Topic: order-events	Partition: 0	Leader: 2	Replicas: 2,3,1	Isr: 2,1	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 1	Leader: 2	Replicas: 3,1,2	Isr: 2,1	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 2	Leader: 2	Replicas: 1,2,3	Isr: 2,1	Elr: 	LastKnownElr: 
+clientRequestId=abc03f68-8708-4e95-9cbd-9a71e42fc028
+POST while kafka-3 down: status=201 body={"orderId":"a7cdff29-154f-47c2-a4a9-45222ad030de","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-10T17:23:47.213600Z"}
+--- SQL while kafka-3 is STILL stopped ---
+               event_id               |             aggregate_id             | attempt_count | sent |         created_at          |            sent_at            
+--------------------------------------+--------------------------------------+---------------+------+-----------------------------+-------------------------------
+ 3690b9a0-a1c6-42c5-8b28-5e164413efc7 | a7cdff29-154f-47c2-a4a9-45222ad030de |             0 | t    | 2026-11-10 17:23:47.2136+00 | 2026-11-10 17:23:47.669361+00
+(1 row)
+
+--- Consumer check while kafka-3 is STILL stopped ---
+Partition:2	Offset:0	add87559-4590-4462-9b47-2963b349d9ce	{"eventId": "9f075281-0a43-4b88-8ecf-1e7078188a12", "orderId": "add87559-4590-4462-9b47-2963b349d9ce", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 2}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-07T06:42:11.566442Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:2	Offset:1	2ca946ff-675c-4213-a550-1d2cae9ded80	{"eventId": "3350abf2-836c-4d7e-a653-89a297769f81", "orderId": "2ca946ff-675c-4213-a550-1d2cae9ded80", "payload": {"items": [{"dishId": "CHAO_GA", "lineNo": 1, "dishName": "Cháo gà", "quantity": 1}, {"dishId": "COM_GA", "lineNo": 2, "dishName": "Cơm gà", "quantity": 1}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-10T17:22:45.389120Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:1	Offset:0	ed1c302c-8871-4461-bbf6-5114c5883fd9	{"eventId": "d4adb5e8-d9da-4960-81c8-56ca57b6accd", "orderId": "ed1c302c-8871-4461-bbf6-5114c5883fd9", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 2}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-10T17:22:31.735343Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:0	Offset:0	7b20927a-fc92-4998-82cc-003c24a581db	{"eventId": "e093bf95-12f0-4fa9-9c9d-1a4b35e2c08f", "orderId": "7b20927a-fc92-4998-82cc-003c24a581db", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 2}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-07T06:42:28.319250Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:0	Offset:1	a7cdff29-154f-47c2-a4a9-45222ad030de	{"eventId": "3690b9a0-a1c6-42c5-8b28-5e164413efc7", "orderId": "a7cdff29-154f-47c2-a4a9-45222ad030de", "payload": {"items": [{"dishId": "CHAO_GA", "lineNo": 1, "dishName": "Cháo gà", "quantity": 3}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-10T17:23:47.213600Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+docker : [2026-11-10 17:23:58,369] ERROR Error processing message, terminating consumer process:  
+(org.apache.kafka.tools.consumer.ConsoleConsumer)
+At line:28 char:9
++ $cons = docker compose -f infra/compose.kafka.yaml exec -T kafka-1 /o ...
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([2026-11-10 17:...onsoleConsumer):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+org.apache.kafka.common.errors.TimeoutException
+Processed a total of 5 messages
+--- Topic after kafka-3 recovered ---
+Topic: order-events	TopicId: K65rQBaOT0KG7SDP3SSIZw	PartitionCount: 3	ReplicationFactor: 3	Configs: min.insync.replicas=2
+	Topic: order-events	Partition: 0	Leader: 2	Replicas: 2,3,1	Isr: 2,1,3	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 1	Leader: 2	Replicas: 3,1,2	Isr: 2,1,3	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 2	Leader: 2	Replicas: 1,2,3	Isr: 2,1,3	Elr: 	LastKnownElr: 
+
+=== Scenario 3b: Stop partition leader (kafka-2) ===
+--- Topic while leader kafka-2 is stopped (leader re-elected) ---
+Topic: order-events	TopicId: K65rQBaOT0KG7SDP3SSIZw	PartitionCount: 3	ReplicationFactor: 3	Configs: min.insync.replicas=2
+	Topic: order-events	Partition: 0	Leader: 3	Replicas: 2,3,1	Isr: 1,3	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 1	Leader: 3	Replicas: 3,1,2	Isr: 1,3	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 2	Leader: 1	Replicas: 1,2,3	Isr: 1,3	Elr: 	LastKnownElr: 
+clientRequestId=4d665c56-7cc5-4452-bede-65ee64647f81
+POST while leader kafka-2 down: status=201 body={"orderId":"e62b5409-d937-4cba-ab2a-a8844f468150","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-10T17:24:34.232162Z"}
+--- SQL while leader kafka-2 is STILL stopped ---
+               event_id               |             aggregate_id             | attempt_count | sent |          created_at           |            sent_at            
+--------------------------------------+--------------------------------------+---------------+------+-------------------------------+-------------------------------
+ 4723464d-4d33-40a5-ac00-d87ec1e92d50 | e62b5409-d937-4cba-ab2a-a8844f468150 |             0 | t    | 2026-11-10 17:24:34.232162+00 | 2026-11-10 17:24:34.571665+00
+(1 row)
+
+--- Topic after leader kafka-2 recovered ---
+Topic: order-events	TopicId: K65rQBaOT0KG7SDP3SSIZw	PartitionCount: 3	ReplicationFactor: 3	Configs: min.insync.replicas=2
+	Topic: order-events	Partition: 0	Leader: 3	Replicas: 2,3,1	Isr: 1,3,2	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 1	Leader: 3	Replicas: 3,1,2	Isr: 1,3,2	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 2	Leader: 1	Replicas: 1,2,3	Isr: 1,3,2	Elr: 	LastKnownElr: 
