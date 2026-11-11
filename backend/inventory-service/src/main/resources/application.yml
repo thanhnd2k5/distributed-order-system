@@ -1,0 +1,61 @@
+server:
+  port: ${SERVER_PORT:8084}
+spring:
+  application:
+    name: inventory-service
+  mvc:
+    problemdetails:
+      enabled: true
+  jackson:
+    deserialization:
+      accept-float-as-int: false
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5435/inventory_db}
+    username: ${DB_USERNAME:inventory_app}
+    password: ${DB_PASSWORD:inventory_demo}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${DB_SCHEMA:inventory}
+  flyway:
+    enabled: true
+    create-schemas: true
+    default-schema: ${DB_SCHEMA:inventory}
+    schemas: ${DB_SCHEMA:inventory}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092,localhost:19093,localhost:19094}
+    consumer:
+      group-id: ${KAFKA_GROUP_ID:inventory-v1}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        "[max.poll.interval.ms]": 300000
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        "[enable.idempotence]": true
+        "[max.block.ms]": 2000
+        "[request.timeout.ms]": 2000
+        "[delivery.timeout.ms]": 5000
+    listener:
+      auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
+inventory:
+  instance-id: ${INSTANCE_ID:inventory-1}
+outbox:
+  enabled: ${OUTBOX_ENABLED:false}
+demo:
+  failpoint:
+    halt-after-commit-once: ${DEMO_FAILPOINT_HALT_AFTER_COMMIT_ONCE:false}
+    marker-file: ${DEMO_FAILPOINT_MARKER_FILE:target/d08-failpoint.marker}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
