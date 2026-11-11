@@ -1,0 +1,19 @@
+name: distributed-order-kitchen
+services:
+  kitchen-db:
+    image: postgres:18.6
+    environment:
+      POSTGRES_DB: kitchen_db
+      POSTGRES_USER: kitchen_app
+      POSTGRES_PASSWORD: kitchen_demo
+    ports:
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - kitchen-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kitchen_app -d kitchen_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  kitchen-data:

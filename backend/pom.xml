@@ -21,5 +21,6 @@
         <module>event-contracts</module>
         <module>order-service</module>
         <module>inventory-service</module>
+        <module>kitchen-service</module>
     </modules>
 </project>
