@@ -1,0 +1,18 @@
+=== Scenario D12: Multi-tenant Site Blast-Radius Isolation ===
+Timestamp: 2026-11-11T23:27:03.0424860+07:00
+
+1. Published event for foreign site POS02 (valid schema v1) on status-events:
+OrderId: 4c4bd21f-50a3-4d3b-a54e-a739d5b7bab3
+Payload: {"occurredAt":"2026-11-11T16:26:54.367856Z","sourceType":"POS","eventType":"Reserved","eventId":"c8eccd33-bb65-4e70-a213-8e481e204baa","payload":{"reservationId":"4c4bd21f-50a3-4d3b-a54e-a739d5b7bab3","items":[{"dishId":"COM_GA","lineNo":1,"quantity":1,"dishName":"Cơm gà"}]},"orderId":"4c4bd21f-50a3-4d3b-a54e-a739d5b7bab3","schemaVersion":1,"sourceSiteId":"POS02"}
+
+2. Published event for foreign site POS02 with unsupported schemaVersion 99 on status-events:
+OrderId: dcb3860e-dea5-489b-b17c-6bf93182b43e
+Payload: {"occurredAt":"2026-11-11T16:26:56.548027Z","sourceType":"POS","eventType":"Reserved","eventId":"654b706c-6d47-41df-8d96-d363782bc92e","payload":{"unsupportedField":"malformed-schema"},"orderId":"dcb3860e-dea5-489b-b17c-6bf93182b43e","schemaVersion":99,"sourceSiteId":"POS02"}
+
+Result on order-service (siteId: POS01):
+- Health check status: UP (Container did NOT halt on foreign site schemaVersion 99)
+- Rows in pos01.processed_events for POS02 orders: 0  (Events cleanly skipped)
+
+--- Consumer Groups Lag Check ---
+ GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID order-status-POS01-v1 status-events   2          5               5               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   1          1               1               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1
+ GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID     HOST            CLIENT-ID kitchen-v1      status-events   2          4               5               1               -               -               - kitchen-v1      status-events   1          1               1               0               -               -               -

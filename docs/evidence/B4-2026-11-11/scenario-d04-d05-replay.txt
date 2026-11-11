@@ -1,0 +1,42 @@
+=== Scenario D04 & D05: Replay, Idempotence, and Revert Prevention ===
+Timestamp: 2026-11-11T23:26:24.3315162+07:00
+
+1. Re-calling POST /api/kitchen/tickets/3559598b-3ee7-4e2c-a47d-7fc69a2e298c/complete on already DONE ticket:
+Response:
+{
+    "ticketId":  "3559598b-3ee7-4e2c-a47d-7fc69a2e298c",
+    "orderId":  "1c2db13f-1c64-4af4-888f-157aeaa95953",
+    "sourceType":  "POS",
+    "sourceSiteId":  "POS01",
+    "status":  "DONE",
+    "createdAt":  "2026-11-11T16:24:24.993203Z",
+    "completedAt":  "2026-11-11T16:24:27.630179Z",
+    "items":  [
+                  {
+                      "lineNo":  1,
+                      "dishId":  "COM_GA",
+                      "dishName":  "CÆ¡m gÃ ",
+                      "quantity":  1
+                  }
+              ]
+}
+
+Kitchen Outbox Count for Ticket: 1  (No duplicate Done outbox event produced)
+
+2. Late Reserved event published for order 1c2db13f-1c64-4af4-888f-157aeaa95953 (which is already DONE):
+Replay EventId: 7a35ab6e-9e51-4b34-9d64-d0897a00b742
+Order final status: DONE
+Kitchen ticket status: DONE
+
+--- DB pos01.processed_events for order 1c2db13f-1c64-4af4-888f-157aeaa95953 ---
+               event_id               |               order_id               | event_type |        outcome         |         processed_at           --------------------------------------+--------------------------------------+------------+------------------------+-------------------------------  f43b14b2-f7bc-4156-aac0-dd4a554fd785 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | SUCCESS                | 2026-11-11 16:24:24.937572+00  5de6bab8-0d12-41c4-8cc7-a425d3d3ce90 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Done       | SUCCESS                | 2026-11-11 16:24:27.799212+00  7a35ab6e-9e51-4b34-9d64-d0897a00b742 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | TERMINAL_STATE_IGNORED | 2026-11-11 16:26:19.882937+00 (3 rows) 
+
+--- DB kitchen.processed_events for order 1c2db13f-1c64-4af4-888f-157aeaa95953 ---
+               event_id               |               order_id               | event_type |     outcome     |         processed_at           --------------------------------------+--------------------------------------+------------+-----------------+-------------------------------  f43b14b2-f7bc-4156-aac0-dd4a554fd785 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | APPLIED         | 2026-11-11 16:24:24.993203+00  7a35ab6e-9e51-4b34-9d64-d0897a00b742 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | DUPLICATE_ORDER | 2026-11-11 16:26:19.882418+00 (2 rows) 
+
+--- DB kitchen.outbox_events for ticket 3559598b-3ee7-4e2c-a47d-7fc69a2e298c ---
+               event_id               |             aggregate_id             | event_type |            sent_at             --------------------------------------+--------------------------------------+------------+-------------------------------  5de6bab8-0d12-41c4-8cc7-a425d3d3ce90 | 3559598b-3ee7-4e2c-a47d-7fc69a2e298c | Done       | 2026-11-11 16:24:27.806912+00 (1 row) 
+
+--- Consumer Groups Lag Check ---
+ GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                HOST            CLIENT-ID kitchen-v1      status-events   1          1               1               0               consumer-kitchen-v1-1-2d07dd02-f660-4b57-80f7-21194856dfd9 /172.22.0.1     consumer-kitchen-v1-1 kitchen-v1      status-events   0          -               0               -               consumer-kitchen-v1-1-2d07dd02-f660-4b57-80f7-21194856dfd9 /172.22.0.1     consumer-kitchen-v1-1 kitchen-v1      status-events   2          3               3               0               consumer-kitchen-v1-1-fe76c7cb-4d35-4fa7-aafc-954729307890 /172.22.0.1     consumer-kitchen-v1-1
+ GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID order-status-POS01-v1 status-events   2          3               3               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   1          1               1               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1

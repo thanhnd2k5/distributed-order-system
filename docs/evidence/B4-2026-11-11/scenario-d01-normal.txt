@@ -1,0 +1,99 @@
+=== Scenario D01: Full End-to-End Loop ===
+Timestamp: 2026-11-11T23:24:31.6970911+07:00
+
+Request:
+POST http://localhost:8081/api/orders
+Body: {
+    "items":  [
+                  {
+                      "quantity":  1,
+                      "dishId":  "COM_GA"
+                  }
+              ],
+    "clientRequestId":  "4f316c0a-6b98-49d7-b8fe-1f795bcf2727"
+}
+
+Order Created Response:
+{
+    "orderId":  "1c2db13f-1c64-4af4-888f-157aeaa95953",
+    "sourceSiteId":  "POS01",
+    "status":  "PENDING_INVENTORY",
+    "failureReason":  null,
+    "createdAt":  "2026-11-11T16:24:22.704861Z"
+}
+
+Order Status after Inventory Reservation:
+{
+    "orderId":  "1c2db13f-1c64-4af4-888f-157aeaa95953",
+    "sourceSiteId":  "POS01",
+    "status":  "RESERVED",
+    "failureReason":  null,
+    "createdAt":  "2026-11-11T16:24:22.704861Z"
+}
+
+Kitchen Ticket Created:
+{
+    "ticketId":  "3559598b-3ee7-4e2c-a47d-7fc69a2e298c",
+    "orderId":  "1c2db13f-1c64-4af4-888f-157aeaa95953",
+    "sourceType":  "POS",
+    "sourceSiteId":  "POS01",
+    "status":  "WAITING",
+    "createdAt":  "2026-11-11T16:24:24.993203Z",
+    "completedAt":  null,
+    "items":  [
+                  {
+                      "lineNo":  1,
+                      "dishId":  "COM_GA",
+                      "dishName":  "CÆ¡m gÃ ",
+                      "quantity":  1
+                  }
+              ]
+}
+
+Complete Ticket Response:
+{
+    "ticketId":  "3559598b-3ee7-4e2c-a47d-7fc69a2e298c",
+    "orderId":  "1c2db13f-1c64-4af4-888f-157aeaa95953",
+    "sourceType":  "POS",
+    "sourceSiteId":  "POS01",
+    "status":  "DONE",
+    "createdAt":  "2026-11-11T16:24:24.993203Z",
+    "completedAt":  "2026-11-11T16:24:27.630179Z",
+    "items":  [
+                  {
+                      "lineNo":  1,
+                      "dishId":  "COM_GA",
+                      "dishName":  "CÆ¡m gÃ ",
+                      "quantity":  1
+                  }
+              ]
+}
+
+Order Final Status after Kitchen Done Sync:
+{
+    "orderId":  "1c2db13f-1c64-4af4-888f-157aeaa95953",
+    "sourceSiteId":  "POS01",
+    "status":  "DONE",
+    "failureReason":  null,
+    "createdAt":  "2026-11-11T16:24:22.704861Z"
+}
+
+--- DB pos01.orders ---
+               order_id               | site_id | status | failure_reason | version |          created_at           |          updated_at            --------------------------------------+---------+--------+----------------+---------+-------------------------------+-------------------------------  1c2db13f-1c64-4af4-888f-157aeaa95953 | POS01   | DONE   |                |       2 | 2026-11-11 16:24:22.704861+00 | 2026-11-11 16:24:27.799212+00 (1 row) 
+
+--- DB pos01.processed_events ---
+               event_id               |               order_id               | event_type | outcome |         processed_at           --------------------------------------+--------------------------------------+------------+---------+-------------------------------  f43b14b2-f7bc-4156-aac0-dd4a554fd785 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | SUCCESS | 2026-11-11 16:24:24.937572+00  5de6bab8-0d12-41c4-8cc7-a425d3d3ce90 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Done       | SUCCESS | 2026-11-11 16:24:27.799212+00 (2 rows) 
+
+--- DB inventory.inventory_order_decisions ---
+               order_id               | decision | reason_code |          created_at            --------------------------------------+----------+-------------+-------------------------------  1c2db13f-1c64-4af4-888f-157aeaa95953 | RESERVED |             | 2026-11-11 16:24:23.944431+00 (1 row) 
+
+--- DB kitchen.kitchen_tickets ---
+              ticket_id               |               order_id               | status |          created_at           |         completed_at           --------------------------------------+--------------------------------------+--------+-------------------------------+-------------------------------  3559598b-3ee7-4e2c-a47d-7fc69a2e298c | 1c2db13f-1c64-4af4-888f-157aeaa95953 | DONE   | 2026-11-11 16:24:24.993203+00 | 2026-11-11 16:24:27.630179+00 (1 row) 
+
+--- DB kitchen.outbox_events ---
+               event_id               |             aggregate_id             | event_type |     topic     |             message_key              |            sent_at             --------------------------------------+--------------------------------------+------------+---------------+--------------------------------------+-------------------------------  5de6bab8-0d12-41c4-8cc7-a425d3d3ce90 | 3559598b-3ee7-4e2c-a47d-7fc69a2e298c | Done       | status-events | 1c2db13f-1c64-4af4-888f-157aeaa95953 | 2026-11-11 16:24:27.806912+00 (1 row) 
+
+--- Consumer Groups Lag Check ---
+ GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                HOST            CLIENT-ID kitchen-v1      status-events   1          -               0               -               consumer-kitchen-v1-1-2d07dd02-f660-4b57-80f7-21194856dfd9 /172.22.0.1     consumer-kitchen-v1-1 kitchen-v1      status-events   0          -               0               -               consumer-kitchen-v1-1-2d07dd02-f660-4b57-80f7-21194856dfd9 /172.22.0.1     consumer-kitchen-v1-1 kitchen-v1      status-events   2          2               2               0               consumer-kitchen-v1-1-fe76c7cb-4d35-4fa7-aafc-954729307890 /172.22.0.1     consumer-kitchen-v1-1
+ GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID order-status-POS01-v1 status-events   2          2               2               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   1          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1
+ GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID inventory-v1    order-events    2          1               1               0               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1 inventory-v1    order-events    1          -               0               -               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1 inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1

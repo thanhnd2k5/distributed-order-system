@@ -1,0 +1,46 @@
+=== Final SQL State and Kafka Lag for Milestone B4 ===
+Generated at: 2026-11-11T23:30:12.6370288+07:00
+
+============================================================
+1. pos01-db (pos01_orders.pos01)
+============================================================
+
+--- pos01.orders ---
+               order_id               | site_id |  status  |                           failure_reason                            | version |          created_at           |          updated_at            --------------------------------------+---------+----------+---------------------------------------------------------------------+---------+-------------------------------+-------------------------------  1c2db13f-1c64-4af4-888f-157aeaa95953 | POS01   | DONE     |                                                                     |       2 | 2026-11-11 16:24:22.704861+00 | 2026-11-11 16:24:27.799212+00  95708c6e-2004-4ca2-9918-bf0567848101 | POS01   | FAILED   | INSUFFICIENT_INGREDIENT: Không đủ nguyên liệu: GAO (cần 100, còn 0) |       1 | 2026-11-11 16:25:28.062359+00 | 2026-11-11 16:25:28.739233+00  271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | POS01   | DONE     |                                                                     |       2 | 2026-11-11 16:27:40.250583+00 | 2026-11-11 16:27:42.739321+00  ebbb6c91-1ac2-42b3-981f-d849954274a0 | POS01   | RESERVED |                                                                     |       1 | 2026-11-11 16:28:32.462099+00 | 2026-11-11 16:29:14.15369+00 (4 rows) 
+
+--- pos01.processed_events ---
+               event_id               |               order_id               | event_type |        outcome         |         processed_at           --------------------------------------+--------------------------------------+------------+------------------------+-------------------------------  f43b14b2-f7bc-4156-aac0-dd4a554fd785 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | SUCCESS                | 2026-11-11 16:24:24.937572+00  5de6bab8-0d12-41c4-8cc7-a425d3d3ce90 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Done       | SUCCESS                | 2026-11-11 16:24:27.799212+00  cc6f9199-4aa1-4ac3-b074-ef8eb2bb769e | 95708c6e-2004-4ca2-9918-bf0567848101 | Failed     | SUCCESS                | 2026-11-11 16:25:28.739233+00  7a35ab6e-9e51-4b34-9d64-d0897a00b742 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | TERMINAL_STATE_IGNORED | 2026-11-11 16:26:19.882937+00  aaff698e-60a9-4eb9-9427-7fae66d27529 | 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | Reserved   | SUCCESS                | 2026-11-11 16:27:40.8402+00  82a4021b-824e-495a-b644-e6e88c7d6c27 | 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | Done       | SUCCESS                | 2026-11-11 16:27:42.739321+00  6958c2ab-f723-4d30-bf0c-0617c3fa3ec9 | 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | Reserved   | TERMINAL_STATE_IGNORED | 2026-11-11 16:27:47.921579+00  e504a585-78dd-453b-a313-51d6e112b47c | ebbb6c91-1ac2-42b3-981f-d849954274a0 | Reserved   | SUCCESS                | 2026-11-11 16:29:14.15369+00 (8 rows) 
+
+--- pos01.outbox_events ---
+               event_id               |             aggregate_id             |  event_type  |            sent_at            | attempt_count  --------------------------------------+--------------------------------------+--------------+-------------------------------+---------------  41f82829-4fd9-4c14-b192-09d4d82fe569 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | OrderCreated | 2026-11-11 16:24:23.85989+00  |             0  13fee07b-8955-4c5c-871a-6eacc49d8190 | 95708c6e-2004-4ca2-9918-bf0567848101 | OrderCreated | 2026-11-11 16:25:28.175793+00 |             0  eeffadeb-a22c-4de5-ab3a-5e6475fb58ff | 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | OrderCreated | 2026-11-11 16:27:40.346482+00 |             0  d6d8d809-5197-4985-87d5-01480461ddfc | ebbb6c91-1ac2-42b3-981f-d849954274a0 | OrderCreated | 2026-11-11 16:28:46.160109+00 |             2 (4 rows) 
+
+============================================================
+2. inventory-db (inventory_db.inventory)
+============================================================
+
+--- inventory.inventory_order_decisions ---
+               order_id               | decision |       reason_code       |               reason_message               |          created_at            --------------------------------------+----------+-------------------------+--------------------------------------------+-------------------------------  1c2db13f-1c64-4af4-888f-157aeaa95953 | RESERVED |                         |                                            | 2026-11-11 16:24:23.944431+00  95708c6e-2004-4ca2-9918-bf0567848101 | FAILED   | INSUFFICIENT_INGREDIENT | Không đủ nguyên liệu: GAO (cần 100, còn 0) | 2026-11-11 16:25:28.175822+00  271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | RESERVED |                         |                                            | 2026-11-11 16:27:40.351686+00  ebbb6c91-1ac2-42b3-981f-d849954274a0 | RESERVED |                         |                                            | 2026-11-11 16:28:50.124115+00 (4 rows) 
+
+--- inventory.ingredients ---
+ ingredient_id |  name   | unit | available_quantity |          updated_at            ---------------+---------+------+--------------------+-------------------------------  GAO           | Gạo     | gram |                800 | 2026-11-11 16:28:50.124115+00  THIT_GA       | Thịt gà | gram |               1050 | 2026-11-11 16:28:50.124115+00 (2 rows) 
+
+============================================================
+3. kitchen-db (kitchen_db.kitchen)
+============================================================
+
+--- kitchen.kitchen_tickets ---
+              ticket_id               |               order_id               | status  |          created_at           |         completed_at           --------------------------------------+--------------------------------------+---------+-------------------------------+-------------------------------  3559598b-3ee7-4e2c-a47d-7fc69a2e298c | 1c2db13f-1c64-4af4-888f-157aeaa95953 | DONE    | 2026-11-11 16:24:24.993203+00 | 2026-11-11 16:24:27.630179+00  c94b701a-e29c-4cfd-8392-60d5b0fd3f32 | 4c4bd21f-50a3-4d3b-a54e-a739d5b7bab3 | WAITING | 2026-11-11 16:26:56.185154+00 |  (2 rows) 
+
+--- kitchen.kitchen_ticket_items ---
+              ticket_id               | line_no | dish_id | dish_name_snapshot | quantity  --------------------------------------+---------+---------+--------------------+----------  3559598b-3ee7-4e2c-a47d-7fc69a2e298c |       1 | COM_GA  | Cơm gà             |        1  c94b701a-e29c-4cfd-8392-60d5b0fd3f32 |       1 | COM_GA  | Cơm gà             |        1 (2 rows) 
+
+--- kitchen.processed_events ---
+               event_id               |               order_id               | event_type |     outcome     |         processed_at           --------------------------------------+--------------------------------------+------------+-----------------+-------------------------------  f43b14b2-f7bc-4156-aac0-dd4a554fd785 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | APPLIED         | 2026-11-11 16:24:24.993203+00  7a35ab6e-9e51-4b34-9d64-d0897a00b742 | 1c2db13f-1c64-4af4-888f-157aeaa95953 | Reserved   | DUPLICATE_ORDER | 2026-11-11 16:26:19.882418+00  c8eccd33-bb65-4e70-a213-8e481e204baa | 4c4bd21f-50a3-4d3b-a54e-a739d5b7bab3 | Reserved   | APPLIED         | 2026-11-11 16:26:56.185154+00 (3 rows) 
+
+--- kitchen.outbox_events ---
+               event_id               |             aggregate_id             | event_type |            sent_at            | attempt_count  --------------------------------------+--------------------------------------+------------+-------------------------------+---------------  5de6bab8-0d12-41c4-8cc7-a425d3d3ce90 | 3559598b-3ee7-4e2c-a47d-7fc69a2e298c | Done       | 2026-11-11 16:24:27.806912+00 |             0 (1 row) 
+
+============================================================
+4. Kafka Consumer Group Lag (order-status-POS01-v1)
+============================================================
+ GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID order-status-POS01-v1 status-events   2          8               8               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   1          2               2               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1

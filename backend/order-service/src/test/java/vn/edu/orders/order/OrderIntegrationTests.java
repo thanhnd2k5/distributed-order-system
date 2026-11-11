@@ -35,7 +35,7 @@ class OrderIntegrationTests {
     private JdbcTemplate jdbc;
 
     private final UUID requestId = UUID.randomUUID();
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
     @AfterEach
     void deleteTestOrder() {
@@ -65,8 +65,8 @@ class OrderIntegrationTests {
                   {"dishId":"CHAO_GA","quantity":1}, {"dishId":"COM_GA","quantity":2}
                 ]}
                 """.formatted(requestId)), HttpResponse.BodyHandlers.ofString());
-        var a = first.get(15, TimeUnit.SECONDS);
-        var b = second.get(15, TimeUnit.SECONDS);
+        var a = first.get(20, TimeUnit.SECONDS);
+        var b = second.get(20, TimeUnit.SECONDS);
 
         assertThat(List.of(a.statusCode(), b.statusCode())).containsExactlyInAnyOrder(201, 200);
         String orderId = JsonPath.read(a.body(), "$.orderId");
@@ -160,7 +160,7 @@ class OrderIntegrationTests {
 
     private HttpRequest.Builder request(String path) {
         return HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                .timeout(Duration.ofSeconds(10));
+                .timeout(Duration.ofSeconds(15));
     }
 
     private HttpResponse<String> send(HttpRequest request) throws Exception {

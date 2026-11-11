@@ -1,0 +1,17 @@
+=== Initial State for Milestone B4 Smoke Verification ===
+Generated at: 2026-11-11T23:23:15.5163916+07:00
+
+--- POS01 Orders DB (pos01_orders.pos01) ---
+ orders | order_items | processed_events | outbox_events  --------+-------------+------------------+---------------       0 |           0 |                0 |             0 (1 row) 
+
+--- Inventory DB (inventory_db.inventory) ---
+ ingredient_id |  name   | unit | available_quantity  ---------------+---------+------+--------------------  GAO           | G?o     | gram |               1000  THIT_GA       | Th?t gà | gram |               1500 (2 rows) 
+
+--- Kitchen DB (kitchen_db.kitchen) ---
+ tickets | ticket_items | processed_events | outbox_events  ---------+--------------+------------------+---------------        0 |            0 |                0 |             0 (1 row) 
+
+--- Service Health Checks ---
+order-service (8081): UP
+inventory-service (8084): UP
+kitchen-service instance 1 (8085): UP
+kitchen-service instance 2 (18085): UP

@@ -1,0 +1,18 @@
+=== Scenario D13: Out-of-Order Convergence & Monotonic State Progression ===
+Timestamp: 2026-11-11T23:27:51.3142235+07:00
+
+1. Created order 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 with initial status PENDING_INVENTORY.
+2. Simulated out-of-order Done event (82a4021b-824e-495a-b644-e6e88c7d6c27) arriving before Reserved:
+- Order status transitioned directly to: DONE (Converged to DONE)
+
+3. Simulated late arrival of Reserved event (6958c2ab-f723-4d30-bf0c-0617c3fa3ec9):
+- Order status remained: DONE (Did NOT revert to RESERVED)
+
+--- DB pos01.orders ---
+               order_id               | site_id | status | failure_reason | version |          created_at           |          updated_at            --------------------------------------+---------+--------+----------------+---------+-------------------------------+-------------------------------  271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | POS01   | DONE   |                |       2 | 2026-11-11 16:27:40.250583+00 | 2026-11-11 16:27:42.739321+00 (1 row) 
+
+--- DB pos01.processed_events for order 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 ---
+               event_id               |               order_id               | event_type |        outcome         |         processed_at           --------------------------------------+--------------------------------------+------------+------------------------+-------------------------------  aaff698e-60a9-4eb9-9427-7fae66d27529 | 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | Reserved   | SUCCESS                | 2026-11-11 16:27:40.8402+00  82a4021b-824e-495a-b644-e6e88c7d6c27 | 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | Done       | SUCCESS                | 2026-11-11 16:27:42.739321+00  6958c2ab-f723-4d30-bf0c-0617c3fa3ec9 | 271a6f92-20ff-4bc1-bd32-1246c68ee7d0 | Reserved   | TERMINAL_STATE_IGNORED | 2026-11-11 16:27:47.921579+00 (3 rows) 
+
+--- Consumer Group Lag Check ---
+ GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID order-status-POS01-v1 status-events   2          8               8               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   1          1               1               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1

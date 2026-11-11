@@ -13,6 +13,7 @@ Mục tiêu là triển khai và chứng minh các cơ chế phân tán bằng n
 - Luồng B1 tạo/đọc đơn và ghi outbox đã có trong Order Service. Xem [contract và cách chia việc](docs/TEAM_START.md).
 - B2 gửi outbox lên cụm Kafka ba broker. Xem [cách chạy Kafka và thử phục hồi](backend/README.md#chạy-kafka-cho-b2) và [bằng chứng B2](docs/evidence/B2-2026-11-11/README.md).
 - B3 bổ sung module `event-contracts` và Inventory Service (`localhost:8084`) tiêu thụ `order-events`, giữ nguyên liệu nguyên tử và phát `Reserved`/`Failed` lên `status-events`. Xem [hướng dẫn Inventory](backend/README.md#inventory-service-b3) và [bằng chứng B3](docs/evidence/B3-2026-11-11/README.md).
+- B4 bổ sung module Kitchen Service (`localhost:8085`) quản lý vé bếp, hoàn thành vé phát `Done`, và Order Service tiêu thụ `status-events` đồng bộ trạng thái đơn (`PENDING_INVENTORY -> RESERVED -> DONE/FAILED`) kèm ma trận D13 chống revert. Xem [hướng dẫn Kitchen](backend/README.md#kitchen-service-b4--đồng-bộ-trạng-thái-đơn) và [bằng chứng B4](docs/evidence/B4-2026-11-11/README.md).
 
 Tài liệu ngày 30/10/2026 là bản thiết kế triển khai v0.1. Những lựa chọn kỹ thuật bổ sung được đánh dấu là đề xuất để nhóm rà soát; tài liệu chưa phải bằng chứng hệ thống đã được triển khai hoặc kiểm thử.
 

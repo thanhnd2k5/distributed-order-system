@@ -1,0 +1,39 @@
+=== Scenario Kafka Outage: Resilience and Transactional Outbox Recovery ===
+Timestamp: 2026-11-11T23:28:46.5973103+07:00
+
+1. Kafka cluster stopped via docker compose stop.
+2. Order creation request submitted to order-service (8081):
+Request Body: {
+    "items":  [
+                  {
+                      "quantity":  1,
+                      "dishId":  "COM_GA"
+                  }
+              ],
+    "clientRequestId":  "0fb5437c-efe2-437f-935b-12e367b0b144"
+}
+Response:
+{
+    "orderId":  "ebbb6c91-1ac2-42b3-981f-d849954274a0",
+    "sourceSiteId":  "POS01",
+    "status":  "PENDING_INVENTORY",
+    "failureReason":  null,
+    "createdAt":  "2026-11-11T16:28:32.462099Z"
+}
+
+Outbox state while Kafka is down (sent_at IS NULL):
+               event_id               |             aggregate_id             |  event_type  |    topic     | sent_at | attempt_count  --------------------------------------+--------------------------------------+--------------+--------------+---------+---------------  d6d8d809-5197-4985-87d5-01480461ddfc | ebbb6c91-1ac2-42b3-981f-d849954274a0 | OrderCreated | order-events |         |             0 (1 row) 
+
+3. Kafka cluster restarted via docker compose start.
+4. Outbox publisher recovers and drains event to Kafka.
+Order status after recovery: RESERVED
+
+Outbox state after recovery (sent_at IS NOT NULL):
+               event_id               |             aggregate_id             |  event_type  |    topic     |            sent_at            | attempt_count  --------------------------------------+--------------------------------------+--------------+--------------+-------------------------------+---------------  d6d8d809-5197-4985-87d5-01480461ddfc | ebbb6c91-1ac2-42b3-981f-d849954274a0 | OrderCreated | order-events | 2026-11-11 16:28:46.160109+00 |             2 (1 row) 
+
+--- Consumer Groups Lag Check ---
+ GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID order-status-POS01-v1 status-events   2          8               8               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   1          1               1               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1
+ GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID inventory-v1    order-events    2          2               2               0               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1 inventory-v1    order-events    1          2               2               0               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1 inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1
+
+--- Outbox State Final (Drained after retries) ---
+               event_id               |             aggregate_id             |  event_type  |            sent_at            | attempt_count  --------------------------------------+--------------------------------------+--------------+-------------------------------+---------------  d6d8d809-5197-4985-87d5-01480461ddfc | ebbb6c91-1ac2-42b3-981f-d849954274a0 | OrderCreated | 2026-11-11 16:28:46.160109+00 |             2 (1 row) 

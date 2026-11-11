@@ -2,11 +2,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
-$servicePorts = @(8081, 8084, 18084)
+$servicePorts = @(8081, 18081, 8084, 18084, 8085, 18085)
 $listeners = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
 $busyPorts = @($listeners | Where-Object { $_.Port -in $servicePorts } | Select-Object -ExpandProperty Port -Unique | Sort-Object)
 if ($busyPorts.Count -gt 0) {
-    Write-Error ("Refusing Kafka topic reset: service port(s) still listening: {0}. Stop order-service and inventory-service instances first." -f ($busyPorts -join ', '))
+    Write-Error ("Refusing Kafka topic reset: service port(s) still listening: {0}. Stop order-service, inventory-service, and kitchen-service instances first." -f ($busyPorts -join ', '))
     exit 1
 }
 
@@ -14,7 +14,6 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $repoRoot 'infra/compose.kafka.yaml'
 $bootstrap = 'kafka-1:9092,kafka-2:9092,kafka-3:9092'
 $topics = @('order-events', 'status-events')
-$group = 'inventory-v1'
 
 function Invoke-KafkaExec {
     param([string[]]$KafkaArgs)
@@ -45,7 +44,11 @@ $groups = Invoke-KafkaExec @('/opt/kafka/bin/kafka-consumer-groups.sh', '--boots
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
-if ($groups -contains $group) {
+$groupsToDelete = @($groups | Where-Object {
+    $_ -eq 'inventory-v1' -or $_ -eq 'kitchen-v1' -or $_ -match '^order-status-.*-v1$'
+})
+
+foreach ($group in $groupsToDelete) {
     Write-Output ("Deleting consumer group '{0}' (waiting for any stale members to expire if recently terminated)..." -f $group)
     $groupDeadline = (Get-Date).AddSeconds(55)
     while ($true) {

@@ -1,0 +1,51 @@
+=== Scenario D02: Inventory Failure and Order FAILED Sync ===
+Timestamp: 2026-11-11T23:25:32.4239499+07:00
+
+Request:
+POST http://localhost:8081/api/orders
+Body: {
+    "items":  [
+                  {
+                      "quantity":  1,
+                      "dishId":  "COM_GA"
+                  }
+              ],
+    "clientRequestId":  "1224fd83-b827-4efc-b2d1-78e09a7a2c4e"
+}
+
+Order Created Response:
+{
+    "orderId":  "95708c6e-2004-4ca2-9918-bf0567848101",
+    "sourceSiteId":  "POS01",
+    "status":  "PENDING_INVENTORY",
+    "failureReason":  null,
+    "createdAt":  "2026-11-11T16:25:28.062359Z"
+}
+
+Order Final Status after Inventory Failure:
+{
+    "orderId":  "95708c6e-2004-4ca2-9918-bf0567848101",
+    "sourceSiteId":  "POS01",
+    "status":  "FAILED",
+    "failureReason":  "INSUFFICIENT_INGREDIENT: KhÃ´ng Äá»§ nguyÃªn liá»u: GAO (cáº§n 100, cÃ²n 0)",
+    "createdAt":  "2026-11-11T16:25:28.062359Z"
+}
+
+Kitchen Ticket Exists: NO (Correct, kitchen skips Failed events)
+
+--- DB pos01.orders ---
+               order_id               | site_id | status |                           failure_reason                            | version |          created_at           |          updated_at            --------------------------------------+---------+--------+---------------------------------------------------------------------+---------+-------------------------------+-------------------------------  95708c6e-2004-4ca2-9918-bf0567848101 | POS01   | FAILED | INSUFFICIENT_INGREDIENT: Không đủ nguyên liệu: GAO (cần 100, còn 0) |       1 | 2026-11-11 16:25:28.062359+00 | 2026-11-11 16:25:28.739233+00 (1 row) 
+
+--- DB pos01.processed_events ---
+               event_id               |               order_id               | event_type | outcome |         processed_at           --------------------------------------+--------------------------------------+------------+---------+-------------------------------  cc6f9199-4aa1-4ac3-b074-ef8eb2bb769e | 95708c6e-2004-4ca2-9918-bf0567848101 | Failed     | SUCCESS | 2026-11-11 16:25:28.739233+00 (1 row) 
+
+--- DB inventory.inventory_order_decisions ---
+               order_id               | decision |       reason_code       |               reason_message               |          created_at            --------------------------------------+----------+-------------------------+--------------------------------------------+-------------------------------  95708c6e-2004-4ca2-9918-bf0567848101 | FAILED   | INSUFFICIENT_INGREDIENT | Không đủ nguyên liệu: GAO (cần 100, còn 0) | 2026-11-11 16:25:28.175822+00 (1 row) 
+
+--- DB kitchen.kitchen_tickets (verify 0 rows for order) ---
+ tickets_for_failed_order  --------------------------                         0 (1 row) 
+
+--- Consumer Groups Lag Check ---
+ GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                HOST            CLIENT-ID kitchen-v1      status-events   1          1               1               0               consumer-kitchen-v1-1-2d07dd02-f660-4b57-80f7-21194856dfd9 /172.22.0.1     consumer-kitchen-v1-1 kitchen-v1      status-events   0          -               0               -               consumer-kitchen-v1-1-2d07dd02-f660-4b57-80f7-21194856dfd9 /172.22.0.1     consumer-kitchen-v1-1 kitchen-v1      status-events   2          2               2               0               consumer-kitchen-v1-1-fe76c7cb-4d35-4fa7-aafc-954729307890 /172.22.0.1     consumer-kitchen-v1-1
+ GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID order-status-POS01-v1 status-events   2          2               2               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   1          1               1               0               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1 order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-6faef4c7-4870-42a5-8a03-cbc669ebb45a /172.22.0.1     consumer-order-status-POS01-v1-1
+ GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID inventory-v1    order-events    2          1               1               0               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1 inventory-v1    order-events    1          1               1               0               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1 inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-dd5930bb-1544-4d91-b7d0-7636d82e90f7 /172.22.0.1     consumer-inventory-v1-1
