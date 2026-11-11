@@ -45,6 +45,8 @@ spring:
         "[request.timeout.ms]": 2000
         "[delivery.timeout.ms]": 5000
     listener:
+      ack-mode: record
+      concurrency: 1
       auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
 inventory:
   instance-id: ${INSTANCE_ID:inventory-1}
