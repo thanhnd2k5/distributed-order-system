@@ -1,0 +1,61 @@
+=== Cumulative order-service b3_smoke + final inventory DB state (before post-smoke NORMAL reset) ===
+Timestamp: 2026-11-11T10:27:00+07:00
+
+=== pos01_orders schema b3_smoke ===
+               order_id               | source_type | site_id |      status       |          created_at           
+--------------------------------------+-------------+---------+-------------------+-------------------------------
+ b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:13:54.594077+00
+ 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:13:55.196035+00
+ 945115d3-968f-4a6e-be7e-65a44163007a | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:15:38.138009+00
+ 8ab5fa64-2046-4ffa-a743-16bd64183dce | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:17:16.209905+00
+ 2371d8a0-611c-4db4-a141-4c4f15da44e2 | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:17:16.963587+00
+ 3580d1e8-b8a0-419a-813e-e953b9c5809a | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:18:54.804308+00
+ 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:18:55.38941+00
+ 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:20:38.782757+00
+ 97262c3d-4a3e-4723-b64b-a0b683a2fe22 | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:22:49.377605+00
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:25:50.493496+00
+(10 rows)
+
+               event_id               |             aggregate_id             |  event_type  |    topic     |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+--------------+--------------+--------------------------------------+-------------------------------+---------------
+ 945945b9-b387-4370-93ab-e36e45aae207 | b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | OrderCreated | order-events | b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | 2026-11-11 03:13:56.350118+00 |             0
+ 0f71ae4d-e3f2-4f50-a76d-b7481710734f | 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | OrderCreated | order-events | 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | 2026-11-11 03:13:56.430122+00 |             0
+ b89780e2-934a-4bb5-b85a-31dc891f4c90 | 945115d3-968f-4a6e-be7e-65a44163007a | OrderCreated | order-events | 945115d3-968f-4a6e-be7e-65a44163007a | 2026-11-11 03:15:39.582973+00 |             0
+ 81e05749-e99a-49fc-be63-2a01dd399b4a | 8ab5fa64-2046-4ffa-a743-16bd64183dce | OrderCreated | order-events | 8ab5fa64-2046-4ffa-a743-16bd64183dce | 2026-11-11 03:17:20.13807+00  |             0
+ 26a7ea50-c001-4f91-bc3a-7f7808871742 | 2371d8a0-611c-4db4-a141-4c4f15da44e2 | OrderCreated | order-events | 2371d8a0-611c-4db4-a141-4c4f15da44e2 | 2026-11-11 03:17:20.138298+00 |             0
+ 20777102-df2c-4587-ba3c-5210549b4e16 | 3580d1e8-b8a0-419a-813e-e953b9c5809a | OrderCreated | order-events | 3580d1e8-b8a0-419a-813e-e953b9c5809a | 2026-11-11 03:18:58.553863+00 |             0
+ dd9e0301-9b09-4654-9498-74a202bf01c6 | 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | OrderCreated | order-events | 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | 2026-11-11 03:18:58.554033+00 |             0
+ c956092f-8eb4-41ab-b6f1-3b0c13f253a9 | 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | OrderCreated | order-events | 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | 2026-11-11 03:20:40.069527+00 |             0
+ 66ca6229-44c8-48bb-a378-df88028f0f38 | 97262c3d-4a3e-4723-b64b-a0b683a2fe22 | OrderCreated | order-events | 97262c3d-4a3e-4723-b64b-a0b683a2fe22 | 2026-11-11 03:22:57.175622+00 |             0
+ aab85156-39ac-4d39-a4ee-64eb5813f906 | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | OrderCreated | order-events | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | 2026-11-11 03:25:58.571101+00 |             0
+(10 rows)
+
+
+=== inventory_db schema inventory (post-D08) ===
+ ingredient_id |  name   | unit | available_quantity |          updated_at          
+---------------+---------+------+--------------------+------------------------------
+ GAO           | Gạo     | gram |                900 | 2026-11-11 03:25:58.60969+00
+ THIT_GA       | Thịt gà | gram |               1350 | 2026-11-11 03:25:58.60969+00
+(2 rows)
+
+               order_id               | source_type | source_site_id | decision | reason_code |          created_at          |          updated_at          
+--------------------------------------+-------------+----------------+----------+-------------+------------------------------+------------------------------
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | POS         | POS01          | RESERVED |             | 2026-11-11 03:25:58.60969+00 | 2026-11-11 03:25:58.60969+00
+(1 row)
+
+               order_id               | ingredient_id | reserved_quantity 
+--------------------------------------+---------------+-------------------
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | GAO           |               100
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | THIT_GA       |               150
+(2 rows)
+
+               event_id               |               order_id               |  event_type  | outcome |         processed_at         
+--------------------------------------+--------------------------------------+--------------+---------+------------------------------
+ aab85156-39ac-4d39-a4ee-64eb5813f906 | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | OrderCreated | APPLIED | 2026-11-11 03:25:58.60969+00
+(1 row)
+
+               event_id               |             aggregate_id             | event_type |     topic     |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+------------+---------------+--------------------------------------+-------------------------------+---------------
+ 0c100179-755a-41e3-8af0-130b70328bcf | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | Reserved   | status-events | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | 2026-11-11 03:25:59.020241+00 |             0
+(1 row)
+

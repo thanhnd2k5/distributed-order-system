@@ -1,0 +1,91 @@
+=== Scenario D08: Consumer halts with Runtime.halt(137) after DB commit & before Kafka offset commit; surviving instance rebalances & deduplicates replay ===
+Timestamp: 2026-11-11T10:24:48+07:00
+
+Initial partition assignment:
+  inventory-1 (port 8084, haltAfterCommitOnce=true): [2]
+  inventory-2 (port 18084, haltAfterCommitOnce=false): [0, 1]
+
+Target order (routed to inventory-1 partition 2): {"orderId":"3a3134e3-ab34-4f8e-b49b-29bda6655dcd","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-11T03:25:50.493496Z"}
+
+--- Crash Check (right after inventory-1 halt) ---
+Halt observed timestamp: 2026-11-11T10:25:59.017+07:00
+inventory-1 Process.ExitCode: 137
+Marker file created (d:\distributed-order-system\backend\inventory-service\target\d08-failpoint-inv1.marker): True
+
+DB state immediately after halt (already committed!):
+ ingredient_id | available_quantity |          updated_at          
+---------------+--------------------+------------------------------
+ GAO           |                900 | 2026-11-11 03:25:58.60969+00
+ THIT_GA       |               1350 | 2026-11-11 03:25:58.60969+00
+(2 rows)
+
+               order_id               | decision |          created_at          |          updated_at          
+--------------------------------------+----------+------------------------------+------------------------------
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | RESERVED | 2026-11-11 03:25:58.60969+00 | 2026-11-11 03:25:58.60969+00
+(1 row)
+
+               event_id               |               order_id               | outcome |         processed_at         
+--------------------------------------+--------------------------------------+---------+------------------------------
+ aab85156-39ac-4d39-a4ee-64eb5813f906 | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | APPLIED | 2026-11-11 03:25:58.60969+00
+(1 row)
+
+
+Consumer group inventory-v1 immediately after halt (uncommitted offset, LAG = 1):
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID
+inventory-v1    order-events    1          -               0               -               consumer-inventory-v1-1-290547ad-c90e-4a41-a57d-411c1db792a5 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-290547ad-c90e-4a41-a57d-411c1db792a5 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    2          -               1               -               consumer-inventory-v1-1-5e4172f5-26a0-4a7f-bdfb-1ef92ec1234c /172.22.0.1     consumer-inventory-v1-1
+
+--- Failover & Replay Check (inventory-2 takes over partition 2 after session timeout) ---
+Takeover & offset commit verified at: 2026-11-11T10:26:45.721+07:00
+GET /api/ingredients (port 18084, after replay): [{"ingredientId":"GAO","name":"Gạo","unit":"gram","availableQuantity":900,"updatedAt":"2026-11-11T03:25:58.609690Z"},{"ingredientId":"THIT_GA","name":"Thịt gà","unit":"gram","availableQuantity":1350,"updatedAt":"2026-11-11T03:25:58.609690Z"}]
+GET /api/reservations/3a3134e3-ab34-4f8e-b49b-29bda6655dcd (port 18084): {"orderId":"3a3134e3-ab34-4f8e-b49b-29bda6655dcd","sourceType":"POS","sourceSiteId":"POS01","decision":"RESERVED","reasonCode":null,"reasonMessage":null,"createdAt":"2026-11-11T03:25:58.609690Z","updatedAt":"2026-11-11T03:25:58.609690Z","items":[{"ingredientId":"GAO","ingredientName":"Gạo","unit":"gram","reservedQuantity":100},{"ingredientId":"THIT_GA","ingredientName":"Thịt gà","unit":"gram","reservedQuantity":150}]}
+
+=== inventory-service PostgreSQL (inventory) after replay ===
+ ingredient_id |  name   | unit | available_quantity |          updated_at          
+---------------+---------+------+--------------------+------------------------------
+ GAO           | Gạo     | gram |                900 | 2026-11-11 03:25:58.60969+00
+ THIT_GA       | Thịt gà | gram |               1350 | 2026-11-11 03:25:58.60969+00
+(2 rows)
+
+               order_id               | source_type | source_site_id | decision | reason_code |          created_at          |          updated_at          
+--------------------------------------+-------------+----------------+----------+-------------+------------------------------+------------------------------
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | POS         | POS01          | RESERVED |             | 2026-11-11 03:25:58.60969+00 | 2026-11-11 03:25:58.60969+00
+(1 row)
+
+               order_id               | ingredient_id | reserved_quantity 
+--------------------------------------+---------------+-------------------
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | GAO           |               100
+ 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | THIT_GA       |               150
+(2 rows)
+
+               event_id               |               order_id               |  event_type  | outcome |         processed_at         
+--------------------------------------+--------------------------------------+--------------+---------+------------------------------
+ aab85156-39ac-4d39-a4ee-64eb5813f906 | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | OrderCreated | APPLIED | 2026-11-11 03:25:58.60969+00
+(1 row)
+
+               event_id               |             aggregate_id             | event_type |     topic     |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+------------+---------------+--------------------------------------+-------------------------------+---------------
+ 0c100179-755a-41e3-8af0-130b70328bcf | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | Reserved   | status-events | 3a3134e3-ab34-4f8e-b49b-29bda6655dcd | 2026-11-11 03:25:59.020241+00 |             0
+(1 row)
+
+
+=== Kafka consumer-group inventory-v1 after takeover & offset commit (LAG = 0) ===
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID
+inventory-v1    order-events    2          1               1               0               consumer-inventory-v1-1-290547ad-c90e-4a41-a57d-411c1db792a5 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    1          -               0               -               consumer-inventory-v1-1-290547ad-c90e-4a41-a57d-411c1db792a5 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-290547ad-c90e-4a41-a57d-411c1db792a5 /172.22.0.1     consumer-inventory-v1-1
+
+=== Log extract: inventory-1 (port 8084, pre-halt) ===
+2026-11-11T10:25:39.594+07:00  INFO 9204 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-2]
+2026-11-11T10:25:58.669+07:00  INFO 9204 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory reserved order instanceId=inventory-1 orderId=3a3134e3-ab34-4f8e-b49b-29bda6655dcd eventId=aab85156-39ac-4d39-a4ee-64eb5813f906 partition=2 offset=0 outcome=APPLIED decision=RESERVED outboxEventId=0c100179-755a-41e3-8af0-130b70328bcf
+2026-11-11T10:25:58.674+07:00 ERROR 9204 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.application.DemoFailpoint        : DEMO FAILPOINT D08 triggered: halting JVM after DB commit and before offset ack instanceId=inventory-1 orderId=3a3134e3-ab34-4f8e-b49b-29bda6655dcd eventId=aab85156-39ac-4d39-a4ee-64eb5813f906 partition=2 offset=0 marker=d:\distributed-order-system\backend\inventory-service\target\d08-failpoint-inv1.marker
+
+=== Log extract: inventory-2 (port 18084, takeover + DUPLICATE_EVENT) ===
+2026-11-11T10:25:39.594+07:00  INFO 31124 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-0, order-events-1]
+2026-11-11T10:25:59.022+07:00  INFO 31124 --- [inventory-service] [scheduling-1] v.e.o.i.infrastructure.OutboxPublisher   : Inventory outbox published instanceId=inventory-2 eventId=0c100179-755a-41e3-8af0-130b70328bcf orderId=3a3134e3-ab34-4f8e-b49b-29bda6655dcd topic=status-events eventType=Reserved
+2026-11-11T10:26:42.673+07:00  INFO 31124 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions revoked: [order-events-0, order-events-1]
+2026-11-11T10:26:43.163+07:00  INFO 31124 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-0, order-events-1, order-events-2]
+2026-11-11T10:26:43.219+07:00  INFO 31124 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory duplicate event skipped instanceId=inventory-2 orderId=3a3134e3-ab34-4f8e-b49b-29bda6655dcd eventId=aab85156-39ac-4d39-a4ee-64eb5813f906 partition=2 offset=0 outcome=DUPLICATE_EVENT existingDecision=RESERVED

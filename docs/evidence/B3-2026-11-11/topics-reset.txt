@@ -1,0 +1,29 @@
+=== Command: .\scripts\reset-kafka-topics.ps1 ===
+Timestamp: 2026-11-11T10:09:43+07:00
+
+Ensuring 3-broker Kafka cluster is up and healthy...
+ Container distributed-order-kafka-kafka-3-1 Running 
+ Container distributed-order-kafka-kafka-1-1 Running 
+ Container distributed-order-kafka-kafka-2-1 Running 
+ Container distributed-order-kafka-kafka-3-1 Waiting 
+ Container distributed-order-kafka-kafka-1-1 Waiting 
+ Container distributed-order-kafka-kafka-2-1 Waiting 
+ Container distributed-order-kafka-kafka-1-1 Healthy 
+ Container distributed-order-kafka-kafka-3-1 Healthy 
+ Container distributed-order-kafka-kafka-2-1 Healthy 
+Deleting dev topic 'order-events'...
+Deleting dev topic 'status-events'...
+Creating dev topic 'order-events' (partitions=3, replication-factor=3, min.insync.replicas=2)...
+Creating dev topic 'status-events' (partitions=3, replication-factor=3, min.insync.replicas=2)...
+
+=== Describe topic: order-events ===
+Topic: order-events	TopicId: 1xVRw8YzQd6g2p1UkXBjCA	PartitionCount: 3	ReplicationFactor: 3	Configs: min.insync.replicas=2
+	Topic: order-events	Partition: 0	Leader: 3	Replicas: 3,1,2	Isr: 3,1,2	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 1	Leader: 1	Replicas: 1,2,3	Isr: 1,2,3	Elr: 	LastKnownElr: 
+	Topic: order-events	Partition: 2	Leader: 2	Replicas: 2,3,1	Isr: 2,3,1	Elr: 	LastKnownElr: 
+
+=== Describe topic: status-events ===
+Topic: status-events	TopicId: 3AlJNOeSTsqS2QI8DOzAWg	PartitionCount: 3	ReplicationFactor: 3	Configs: min.insync.replicas=2
+	Topic: status-events	Partition: 0	Leader: 2	Replicas: 2,3,1	Isr: 2,3,1	Elr: 	LastKnownElr: 
+	Topic: status-events	Partition: 1	Leader: 3	Replicas: 3,1,2	Isr: 3,1,2	Elr: 	LastKnownElr: 
+	Topic: status-events	Partition: 2	Leader: 1	Replicas: 1,2,3	Isr: 1,2,3	Elr: 	LastKnownElr: 

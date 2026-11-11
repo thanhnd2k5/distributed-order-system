@@ -1,0 +1,7 @@
+=== Kafka status-events consumed (final D08 phase; earlier phases captured inside scenario-*.txt) ===
+Timestamp: 2026-11-11T10:27:00+07:00
+
+Partition:2	Offset:0	3a3134e3-ab34-4f8e-b49b-29bda6655dcd	{"eventId": "0c100179-755a-41e3-8af0-130b70328bcf", "orderId": "3a3134e3-ab34-4f8e-b49b-29bda6655dcd", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 1}], "reservationId": "3a3134e3-ab34-4f8e-b49b-29bda6655dcd"}, "eventType": "Reserved", "occurredAt": "2026-11-11T03:25:58.609690Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+[2026-11-11 03:26:57,251] ERROR Error processing message, terminating consumer process:  (org.apache.kafka.tools.consumer.ConsoleConsumer)
+org.apache.kafka.common.errors.TimeoutException
+Processed a total of 1 messages

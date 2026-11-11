@@ -1,0 +1,81 @@
+=== Scenario D01: Normal reservation (NORMAL preset: GAO=1000, THIT_GA=1500) ===
+Timestamp: 2026-11-11T10:13:54+07:00
+
+Request 1 (COM_GA x1): {"items":[{"quantity":1,"dishId":"COM_GA"}],"clientRequestId":"ca824f00-3ef6-46e6-807f-0dd718728e9b"}
+Response 1: {"orderId":"b3fe0e06-6f7c-4745-9926-5f1d7d968fcb","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-11T03:13:54.594077Z"}
+Partition (murmur2): 2
+
+Request 2 (CHAO_GA x1): {"items":[{"quantity":1,"dishId":"CHAO_GA"}],"clientRequestId":"6af38f97-0912-4f7f-8815-4cd8c4c0d9df"}
+Response 2: {"orderId":"4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-11T03:13:55.196035Z"}
+Partition (murmur2): 1
+
+GET /api/reservations/b3fe0e06-6f7c-4745-9926-5f1d7d968fcb: {"orderId":"b3fe0e06-6f7c-4745-9926-5f1d7d968fcb","sourceType":"POS","sourceSiteId":"POS01","decision":"RESERVED","reasonCode":null,"reasonMessage":null,"createdAt":"2026-11-11T03:13:56.400663Z","updatedAt":"2026-11-11T03:13:56.400663Z","items":[{"ingredientId":"GAO","ingredientName":"Gạo","unit":"gram","reservedQuantity":100},{"ingredientId":"THIT_GA","ingredientName":"Thịt gà","unit":"gram","reservedQuantity":150}]}
+GET /api/reservations/4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25: {"orderId":"4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25","sourceType":"POS","sourceSiteId":"POS01","decision":"RESERVED","reasonCode":null,"reasonMessage":null,"createdAt":"2026-11-11T03:13:56.485533Z","updatedAt":"2026-11-11T03:13:56.485533Z","items":[{"ingredientId":"GAO","ingredientName":"Gạo","unit":"gram","reservedQuantity":50},{"ingredientId":"THIT_GA","ingredientName":"Thịt gà","unit":"gram","reservedQuantity":100}]}
+GET /api/ingredients (after): [{"ingredientId":"GAO","name":"Gạo","unit":"gram","availableQuantity":850,"updatedAt":"2026-11-11T03:13:56.485533Z"},{"ingredientId":"THIT_GA","name":"Thịt gà","unit":"gram","availableQuantity":1250,"updatedAt":"2026-11-11T03:13:56.485533Z"}]
+
+=== order-service PostgreSQL (b3_smoke) ===
+ERROR:  column "source_site_id" does not exist
+LINE 1: SELECT order_id, source_type, source_site_id, status, create...
+                                      ^
+               event_id               |             aggregate_id             |  event_type  |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+--------------+--------------------------------------+-------------------------------+---------------
+ 945945b9-b387-4370-93ab-e36e45aae207 | b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | OrderCreated | b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | 2026-11-11 03:13:56.350118+00 |             0
+ 0f71ae4d-e3f2-4f50-a76d-b7481710734f | 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | OrderCreated | 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | 2026-11-11 03:13:56.430122+00 |             0
+(2 rows)
+
+
+=== inventory-service PostgreSQL (inventory) ===
+ ingredient_id |  name   | unit | available_quantity |          updated_at           
+---------------+---------+------+--------------------+-------------------------------
+ GAO           | Gạo     | gram |                850 | 2026-11-11 03:13:56.485533+00
+ THIT_GA       | Thịt gà | gram |               1250 | 2026-11-11 03:13:56.485533+00
+(2 rows)
+
+               order_id               | source_type | source_site_id | decision | reason_code |          created_at           |          updated_at           
+--------------------------------------+-------------+----------------+----------+-------------+-------------------------------+-------------------------------
+ b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | POS         | POS01          | RESERVED |             | 2026-11-11 03:13:56.400663+00 | 2026-11-11 03:13:56.400663+00
+ 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | POS         | POS01          | RESERVED |             | 2026-11-11 03:13:56.485533+00 | 2026-11-11 03:13:56.485533+00
+(2 rows)
+
+               order_id               | ingredient_id | reserved_quantity 
+--------------------------------------+---------------+-------------------
+ 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | GAO           |                50
+ 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | THIT_GA       |               100
+ b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | GAO           |               100
+ b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | THIT_GA       |               150
+(4 rows)
+
+               event_id               |               order_id               |  event_type  | outcome |         processed_at          
+--------------------------------------+--------------------------------------+--------------+---------+-------------------------------
+ 945945b9-b387-4370-93ab-e36e45aae207 | b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | OrderCreated | APPLIED | 2026-11-11 03:13:56.400663+00
+ 0f71ae4d-e3f2-4f50-a76d-b7481710734f | 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | OrderCreated | APPLIED | 2026-11-11 03:13:56.485533+00
+(2 rows)
+
+               event_id               |             aggregate_id             | event_type |     topic     |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+------------+---------------+--------------------------------------+-------------------------------+---------------
+ 5fd98aa4-3a2b-44c6-bcc9-9ae9d9dfca47 | b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | Reserved   | status-events | b3fe0e06-6f7c-4745-9926-5f1d7d968fcb | 2026-11-11 03:13:56.816456+00 |             0
+ d9009e74-5e88-46bb-a349-54fcb69c4c02 | 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | Reserved   | status-events | 4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 | 2026-11-11 03:13:56.878747+00 |             0
+(2 rows)
+
+
+=== Kafka status-events consumed ===
+Partition:2	Offset:0	b3fe0e06-6f7c-4745-9926-5f1d7d968fcb	{"eventId": "5fd98aa4-3a2b-44c6-bcc9-9ae9d9dfca47", "orderId": "b3fe0e06-6f7c-4745-9926-5f1d7d968fcb", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 1}], "reservationId": "b3fe0e06-6f7c-4745-9926-5f1d7d968fcb"}, "eventType": "Reserved", "occurredAt": "2026-11-11T03:13:56.400663Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:1	Offset:0	4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25	{"eventId": "d9009e74-5e88-46bb-a349-54fcb69c4c02", "orderId": "4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25", "payload": {"items": [{"dishId": "CHAO_GA", "lineNo": 1, "dishName": "Cháo gà", "quantity": 1}], "reservationId": "4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25"}, "eventType": "Reserved", "occurredAt": "2026-11-11T03:13:56.485533Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Processed a total of 2 messages
+
+=== Kafka consumer-group inventory-v1 after D01 ===
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID
+inventory-v1    order-events    1          1               1               0               consumer-inventory-v1-1-b3102c89-294e-40dc-8676-5311ff812278 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-b3102c89-294e-40dc-8676-5311ff812278 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    2          1               1               0               consumer-inventory-v1-1-e5c46bf0-98ea-4253-baa4-e6c4ca90eb97 /172.22.0.1     consumer-inventory-v1-1
+
+=== Log extract: inventory-1 (port 8084) ===
+2026-11-11T10:13:47.129+07:00  INFO 10112 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-0, order-events-1]
+2026-11-11T10:13:56.554+07:00  INFO 10112 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory reserved order instanceId=inventory-1 orderId=4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 eventId=0f71ae4d-e3f2-4f50-a76d-b7481710734f partition=1 offset=0 outcome=APPLIED decision=RESERVED outboxEventId=d9009e74-5e88-46bb-a349-54fcb69c4c02
+
+=== Log extract: inventory-2 (port 18084) ===
+2026-11-11T10:13:47.127+07:00  INFO 32376 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-2]
+2026-11-11T10:13:56.493+07:00  INFO 32376 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory reserved order instanceId=inventory-2 orderId=b3fe0e06-6f7c-4745-9926-5f1d7d968fcb eventId=945945b9-b387-4370-93ab-e36e45aae207 partition=2 offset=0 outcome=APPLIED decision=RESERVED outboxEventId=5fd98aa4-3a2b-44c6-bcc9-9ae9d9dfca47
+2026-11-11T10:13:56.818+07:00  INFO 32376 --- [inventory-service] [scheduling-1] v.e.o.i.infrastructure.OutboxPublisher   : Inventory outbox published instanceId=inventory-2 eventId=5fd98aa4-3a2b-44c6-bcc9-9ae9d9dfca47 orderId=b3fe0e06-6f7c-4745-9926-5f1d7d968fcb topic=status-events eventType=Reserved
+2026-11-11T10:13:56.880+07:00  INFO 32376 --- [inventory-service] [scheduling-1] v.e.o.i.infrastructure.OutboxPublisher   : Inventory outbox published instanceId=inventory-2 eventId=d9009e74-5e88-46bb-a349-54fcb69c4c02 orderId=4b29ac1a-5fa1-4e8e-95d7-ace4b5c78a25 topic=status-events eventType=Reserved

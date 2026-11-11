@@ -1,0 +1,80 @@
+=== Scenarios D04 & D05: Duplicate eventId replay (x3) + Duplicate orderId with new eventId (same & conflicting payload) ===
+Timestamp: 2026-11-11T10:19:39+07:00
+
+Initial order (COM_GA x1): {"orderId":"0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-11T03:20:38.782757Z"}
+Partition (murmur2): 2
+GET /api/ingredients (after initial RESERVED): [{"ingredientId":"GAO","name":"Gạo","unit":"gram","availableQuantity":900,"updatedAt":"2026-11-11T03:20:40.119304Z"},{"ingredientId":"THIT_GA","name":"Thịt gà","unit":"gram","availableQuantity":1350,"updatedAt":"2026-11-11T03:20:40.119304Z"}]
+
+Captured real OrderCreated payload from b3_smoke.outbox_events:
+{"eventId": "c956092f-8eb4-41ab-b6f1-3b0c13f253a9", "orderId": "0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 1}]}, "eventType": "OrderCreated", "occurredAt": "2026-11-11T03:20:38.782757Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+
+--- D04: Replayed identical eventId payload x3 (key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9) ---
+Sent #1 topic=order-events key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 partition=2 offset=1
+Sent #2 topic=order-events key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 partition=2 offset=2
+Sent #3 topic=order-events key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 partition=2 offset=3
+
+--- D05a: New eventId=5a4cf8da-aa5a-43fb-bdc0-1b1b43b580f2 with identical payload (key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9) ---
+Sent #1 topic=order-events key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 partition=2 offset=4
+
+--- D05b: New eventId=c5db89d6-4c4c-4097-b215-df011064209e with conflicting payload CHAO_GA x2 (key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9) ---
+Sent #1 topic=order-events key=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 partition=2 offset=5
+
+GET /api/ingredients (after all replays): [{"ingredientId":"GAO","name":"Gạo","unit":"gram","availableQuantity":900,"updatedAt":"2026-11-11T03:20:40.119304Z"},{"ingredientId":"THIT_GA","name":"Thịt gà","unit":"gram","availableQuantity":1350,"updatedAt":"2026-11-11T03:20:40.119304Z"}]
+GET /api/reservations/0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 (after all replays): {"orderId":"0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9","sourceType":"POS","sourceSiteId":"POS01","decision":"RESERVED","reasonCode":null,"reasonMessage":null,"createdAt":"2026-11-11T03:20:40.119304Z","updatedAt":"2026-11-11T03:20:40.119304Z","items":[{"ingredientId":"GAO","ingredientName":"Gạo","unit":"gram","reservedQuantity":100},{"ingredientId":"THIT_GA","ingredientName":"Thịt gà","unit":"gram","reservedQuantity":150}]}
+
+=== inventory-service PostgreSQL (inventory) ===
+ ingredient_id |  name   | unit | available_quantity |          updated_at           
+---------------+---------+------+--------------------+-------------------------------
+ GAO           | Gạo     | gram |                900 | 2026-11-11 03:20:40.119304+00
+ THIT_GA       | Thịt gà | gram |               1350 | 2026-11-11 03:20:40.119304+00
+(2 rows)
+
+               order_id               | source_type | source_site_id |                       request_fingerprint                        | decision | reason_code |          created_at           |          updated_at           
+--------------------------------------+-------------+----------------+------------------------------------------------------------------+----------+-------------+-------------------------------+-------------------------------
+ 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | POS         | POS01          | 6fc6044b70bea4dcd7a478ead47bfdebb2f6bace0671d05267fca9a326e505e3 | RESERVED |             | 2026-11-11 03:20:40.119304+00 | 2026-11-11 03:20:40.119304+00
+(1 row)
+
+               order_id               | ingredient_id | reserved_quantity 
+--------------------------------------+---------------+-------------------
+ 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | GAO           |               100
+ 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | THIT_GA       |               150
+(2 rows)
+
+               event_id               |               order_id               |  event_type  |                       request_fingerprint                        |     outcome      |         processed_at          
+--------------------------------------+--------------------------------------+--------------+------------------------------------------------------------------+------------------+-------------------------------
+ c956092f-8eb4-41ab-b6f1-3b0c13f253a9 | 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | OrderCreated | 6fc6044b70bea4dcd7a478ead47bfdebb2f6bace0671d05267fca9a326e505e3 | APPLIED          | 2026-11-11 03:20:40.119304+00
+ 5a4cf8da-aa5a-43fb-bdc0-1b1b43b580f2 | 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | OrderCreated | 6fc6044b70bea4dcd7a478ead47bfdebb2f6bace0671d05267fca9a326e505e3 | DUPLICATE_ORDER  | 2026-11-11 03:20:44.893933+00
+ c5db89d6-4c4c-4097-b215-df011064209e | 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | OrderCreated | 87ad884257b6e0d621199c65be6acb1460896bf7fc88bee7ff5bee4feb5a44d8 | PAYLOAD_CONFLICT | 2026-11-11 03:20:46.016496+00
+(3 rows)
+
+               event_id               |             aggregate_id             | event_type |     topic     |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+------------+---------------+--------------------------------------+-------------------------------+---------------
+ 788921f2-748b-457e-a780-d3a18fa81ab3 | 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | Reserved   | status-events | 0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 | 2026-11-11 03:20:40.704589+00 |             0
+(1 row)
+
+
+=== Kafka status-events consumed (expected exactly 1 Reserved message) ===
+Partition:2	Offset:0	0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9	{"eventId": "788921f2-748b-457e-a780-d3a18fa81ab3", "orderId": "0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 1}], "reservationId": "0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9"}, "eventType": "Reserved", "occurredAt": "2026-11-11T03:20:40.119304Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+[2026-11-11 03:20:59,019] ERROR Error processing message, terminating consumer process:  (org.apache.kafka.tools.consumer.ConsoleConsumer)
+org.apache.kafka.common.errors.TimeoutException
+Processed a total of 1 messages
+
+=== Kafka consumer-group inventory-v1 after D04+D05 ===
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID
+inventory-v1    order-events    1          -               0               -               consumer-inventory-v1-1-29850ca2-8751-4781-a1d1-c1d34d462607 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-29850ca2-8751-4781-a1d1-c1d34d462607 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    2          6               6               0               consumer-inventory-v1-1-7d646e61-4b79-4149-9de3-082b31218858 /172.22.0.1     consumer-inventory-v1-1
+
+=== Log extract: inventory-1 (port 8084) ===
+2026-11-11T10:20:35.715+07:00  INFO 9784 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-0, order-events-1]
+
+=== Log extract: inventory-2 (port 18084) ===
+2026-11-11T10:20:35.712+07:00  INFO 25836 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-2]
+2026-11-11T10:20:40.176+07:00  INFO 25836 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory reserved order instanceId=inventory-2 orderId=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 eventId=c956092f-8eb4-41ab-b6f1-3b0c13f253a9 partition=2 offset=0 outcome=APPLIED decision=RESERVED outboxEventId=788921f2-748b-457e-a780-d3a18fa81ab3
+2026-11-11T10:20:40.704+07:00  INFO 25836 --- [inventory-service] [scheduling-1] v.e.o.i.infrastructure.OutboxPublisher   : Inventory outbox published instanceId=inventory-2 eventId=788921f2-748b-457e-a780-d3a18fa81ab3 orderId=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 topic=status-events eventType=Reserved
+2026-11-11T10:20:43.629+07:00  INFO 25836 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory duplicate event skipped instanceId=inventory-2 orderId=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 eventId=c956092f-8eb4-41ab-b6f1-3b0c13f253a9 partition=2 offset=1 outcome=DUPLICATE_EVENT existingDecision=RESERVED
+2026-11-11T10:20:43.650+07:00  INFO 25836 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory duplicate event skipped instanceId=inventory-2 orderId=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 eventId=c956092f-8eb4-41ab-b6f1-3b0c13f253a9 partition=2 offset=2 outcome=DUPLICATE_EVENT existingDecision=RESERVED
+2026-11-11T10:20:43.673+07:00  INFO 25836 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory duplicate event skipped instanceId=inventory-2 orderId=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 eventId=c956092f-8eb4-41ab-b6f1-3b0c13f253a9 partition=2 offset=3 outcome=DUPLICATE_EVENT existingDecision=RESERVED
+2026-11-11T10:20:44.905+07:00  INFO 25836 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory duplicate orderId skipped instanceId=inventory-2 orderId=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 eventId=5a4cf8da-aa5a-43fb-bdc0-1b1b43b580f2 partition=2 offset=4 outcome=DUPLICATE_ORDER existingDecision=RESERVED
+2026-11-11T10:20:46.028+07:00 ERROR 25836 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory payload conflict detected instanceId=inventory-2 orderId=0cfa440c-3ccd-46cd-9ac3-052cd87dc1c9 eventId=c5db89d6-4c4c-4097-b215-df011064209e partition=2 offset=5 outcome=PAYLOAD_CONFLICT existingDecision=RESERVED existingFingerprint=6fc6044b70bea4dcd7a478ead47bfdebb2f6bace0671d05267fca9a326e505e3 incomingFingerprint=87ad884257b6e0d621199c65be6acb1460896bf7fc88bee7ff5bee4feb5a44d8

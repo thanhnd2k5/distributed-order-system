@@ -1,0 +1,91 @@
+=== Scenario D03: Concurrent contention on LAST_PORTION across 2 Inventory instances on different partitions ===
+Timestamp: 2026-11-11T10:17:49+07:00
+Attempt: 1
+Limitation: POS01 + POS01 used in B3 because Online service arrives in B5; concurrency triggered simultaneously from two barrier-synchronized producers using real POS01 OrderCreated payloads.
+
+Partition ownership:
+  inventory-1 (port 8084) assigned partitions: [0, 1]
+  inventory-2 (port 18084) assigned partitions: [2]
+
+GET /api/ingredients (before): [{"ingredientId":"GAO","name":"Gạo","unit":"gram","availableQuantity":1000,"updatedAt":"2026-11-11T03:18:29.358908Z"},{"ingredientId":"THIT_GA","name":"Thịt gà","unit":"gram","availableQuantity":150,"updatedAt":"2026-11-11T03:18:29.358908Z"}]
+Order A (routed to inventory-1 partition 0): {"orderId":"3580d1e8-b8a0-419a-813e-e953b9c5809a","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-11T03:18:54.804308Z"}
+Order B (routed to inventory-2 partition 2): {"orderId":"4cd6c05d-a667-44fa-9635-0a7bf8d82297","sourceSiteId":"POS01","status":"PENDING_INVENTORY","failureReason":null,"createdAt":"2026-11-11T03:18:55.389410Z"}
+
+Barrier send metadata:
+order1=3580d1e8-b8a0-419a-813e-e953b9c5809a partition=0 offset=0 sendStart=2026-11-11T03:18:58.130958100Z brokerAck=2026-11-11T03:18:58.185647500Z
+order2=4cd6c05d-a667-44fa-9635-0a7bf8d82297 partition=2 offset=0 sendStart=2026-11-11T03:18:58.130958100Z brokerAck=2026-11-11T03:18:58.185647500Z
+
+Transaction window comparison (DB processed_at start vs log post-decision):
+  inv1=[03:18:58.247755Z .. 03:18:58.335Z], inv2=[03:18:58.248822Z .. 03:18:58.362Z], overlapped=True
+
+GET /api/reservations/3580d1e8-b8a0-419a-813e-e953b9c5809a: {"orderId":"3580d1e8-b8a0-419a-813e-e953b9c5809a","sourceType":"POS","sourceSiteId":"POS01","decision":"RESERVED","reasonCode":null,"reasonMessage":null,"createdAt":"2026-11-11T03:18:58.247755Z","updatedAt":"2026-11-11T03:18:58.247755Z","items":[{"ingredientId":"GAO","ingredientName":"Gạo","unit":"gram","reservedQuantity":100},{"ingredientId":"THIT_GA","ingredientName":"Thịt gà","unit":"gram","reservedQuantity":150}]}
+GET /api/reservations/4cd6c05d-a667-44fa-9635-0a7bf8d82297: {"orderId":"4cd6c05d-a667-44fa-9635-0a7bf8d82297","sourceType":"POS","sourceSiteId":"POS01","decision":"FAILED","reasonCode":"INSUFFICIENT_INGREDIENT","reasonMessage":"Không đủ nguyên liệu: THIT_GA (cần 150, còn 0)","createdAt":"2026-11-11T03:18:58.248822Z","updatedAt":"2026-11-11T03:18:58.248822Z","items":[]}
+GET /api/ingredients (after): [{"ingredientId":"GAO","name":"Gạo","unit":"gram","availableQuantity":900,"updatedAt":"2026-11-11T03:18:58.247755Z"},{"ingredientId":"THIT_GA","name":"Thịt gà","unit":"gram","availableQuantity":0,"updatedAt":"2026-11-11T03:18:58.247755Z"}]
+
+=== order-service PostgreSQL (b3_smoke) ===
+               order_id               | source_type | site_id |      status       |          created_at           
+--------------------------------------+-------------+---------+-------------------+-------------------------------
+ 3580d1e8-b8a0-419a-813e-e953b9c5809a | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:18:54.804308+00
+ 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | POS         | POS01   | PENDING_INVENTORY | 2026-11-11 03:18:55.38941+00
+(2 rows)
+
+               event_id               |             aggregate_id             |  event_type  |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+--------------+--------------------------------------+-------------------------------+---------------
+ 20777102-df2c-4587-ba3c-5210549b4e16 | 3580d1e8-b8a0-419a-813e-e953b9c5809a | OrderCreated | 3580d1e8-b8a0-419a-813e-e953b9c5809a | 2026-11-11 03:18:58.553863+00 |             0
+ dd9e0301-9b09-4654-9498-74a202bf01c6 | 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | OrderCreated | 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | 2026-11-11 03:18:58.554033+00 |             0
+(2 rows)
+
+
+=== inventory-service PostgreSQL (inventory) ===
+ ingredient_id |  name   | unit | available_quantity |          updated_at           
+---------------+---------+------+--------------------+-------------------------------
+ GAO           | Gạo     | gram |                900 | 2026-11-11 03:18:58.247755+00
+ THIT_GA       | Thịt gà | gram |                  0 | 2026-11-11 03:18:58.247755+00
+(2 rows)
+
+               order_id               | source_type | source_site_id | decision |       reason_code       |                 reason_message                 |          created_at           |          updated_at           
+--------------------------------------+-------------+----------------+----------+-------------------------+------------------------------------------------+-------------------------------+-------------------------------
+ 3580d1e8-b8a0-419a-813e-e953b9c5809a | POS         | POS01          | RESERVED |                         |                                                | 2026-11-11 03:18:58.247755+00 | 2026-11-11 03:18:58.247755+00
+ 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | POS         | POS01          | FAILED   | INSUFFICIENT_INGREDIENT | Không đủ nguyên liệu: THIT_GA (cần 150, còn 0) | 2026-11-11 03:18:58.248822+00 | 2026-11-11 03:18:58.248822+00
+(2 rows)
+
+               order_id               | ingredient_id | reserved_quantity 
+--------------------------------------+---------------+-------------------
+ 3580d1e8-b8a0-419a-813e-e953b9c5809a | GAO           |               100
+ 3580d1e8-b8a0-419a-813e-e953b9c5809a | THIT_GA       |               150
+(2 rows)
+
+               event_id               |               order_id               |  event_type  | outcome |         processed_at          
+--------------------------------------+--------------------------------------+--------------+---------+-------------------------------
+ 20777102-df2c-4587-ba3c-5210549b4e16 | 3580d1e8-b8a0-419a-813e-e953b9c5809a | OrderCreated | APPLIED | 2026-11-11 03:18:58.247755+00
+ dd9e0301-9b09-4654-9498-74a202bf01c6 | 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | OrderCreated | APPLIED | 2026-11-11 03:18:58.248822+00
+(2 rows)
+
+               event_id               |             aggregate_id             | event_type |     topic     |             message_key              |            sent_at            | attempt_count 
+--------------------------------------+--------------------------------------+------------+---------------+--------------------------------------+-------------------------------+---------------
+ cf66e8f9-564f-448c-91a0-0fc1537c48af | 3580d1e8-b8a0-419a-813e-e953b9c5809a | Reserved   | status-events | 3580d1e8-b8a0-419a-813e-e953b9c5809a | 2026-11-11 03:18:58.642886+00 |             0
+ 332c35b4-5229-4e90-bc56-145c74b345c9 | 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | Failed     | status-events | 4cd6c05d-a667-44fa-9635-0a7bf8d82297 | 2026-11-11 03:18:58.663768+00 |             0
+(2 rows)
+
+
+=== Kafka status-events consumed ===
+Partition:2	Offset:0	4cd6c05d-a667-44fa-9635-0a7bf8d82297	{"eventId": "332c35b4-5229-4e90-bc56-145c74b345c9", "orderId": "4cd6c05d-a667-44fa-9635-0a7bf8d82297", "payload": {"reasonCode": "INSUFFICIENT_INGREDIENT", "reasonMessage": "Không đủ nguyên liệu: THIT_GA (cần 150, còn 0)"}, "eventType": "Failed", "occurredAt": "2026-11-11T03:18:58.248822Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Partition:0	Offset:0	3580d1e8-b8a0-419a-813e-e953b9c5809a	{"eventId": "cf66e8f9-564f-448c-91a0-0fc1537c48af", "orderId": "3580d1e8-b8a0-419a-813e-e953b9c5809a", "payload": {"items": [{"dishId": "COM_GA", "lineNo": 1, "dishName": "Cơm gà", "quantity": 1}], "reservationId": "3580d1e8-b8a0-419a-813e-e953b9c5809a"}, "eventType": "Reserved", "occurredAt": "2026-11-11T03:18:58.247755Z", "sourceType": "POS", "sourceSiteId": "POS01", "schemaVersion": 1}
+Processed a total of 2 messages
+
+=== Kafka consumer-group inventory-v1 after D03 ===
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID
+inventory-v1    order-events    1          -               0               -               consumer-inventory-v1-1-7c9e6b9f-7c26-41cd-afd5-6327c316a763 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    0          1               1               0               consumer-inventory-v1-1-7c9e6b9f-7c26-41cd-afd5-6327c316a763 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    2          1               1               0               consumer-inventory-v1-1-fb039938-21cc-4485-bd7d-1e00617502ce /172.22.0.1     consumer-inventory-v1-1
+
+=== Log extract: inventory-1 (port 8084) ===
+2026-11-11T10:18:46.431+07:00  INFO 18760 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-0, order-events-1]
+2026-11-11T10:18:58.335+07:00  INFO 18760 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory reserved order instanceId=inventory-1 orderId=3580d1e8-b8a0-419a-813e-e953b9c5809a eventId=20777102-df2c-4587-ba3c-5210549b4e16 partition=0 offset=0 outcome=APPLIED decision=RESERVED outboxEventId=cf66e8f9-564f-448c-91a0-0fc1537c48af
+2026-11-11T10:18:58.665+07:00  INFO 18760 --- [inventory-service] [scheduling-1] v.e.o.i.infrastructure.OutboxPublisher   : Inventory outbox published instanceId=inventory-1 eventId=332c35b4-5229-4e90-bc56-145c74b345c9 orderId=4cd6c05d-a667-44fa-9635-0a7bf8d82297 topic=status-events eventType=Failed
+
+=== Log extract: inventory-2 (port 18084) ===
+2026-11-11T10:18:46.430+07:00  INFO 25628 --- [inventory-service] [inventory-order-events-0-C-1] o.s.k.l.KafkaMessageListenerContainer    : inventory-v1: partitions assigned: [order-events-2]
+2026-11-11T10:18:58.362+07:00  INFO 25628 --- [inventory-service] [inventory-order-events-0-C-1] v.e.o.i.a.InventoryReservationService    : Inventory rejected order instanceId=inventory-2 orderId=4cd6c05d-a667-44fa-9635-0a7bf8d82297 eventId=dd9e0301-9b09-4654-9498-74a202bf01c6 partition=2 offset=0 outcome=APPLIED decision=FAILED reasonCode=INSUFFICIENT_INGREDIENT outboxEventId=332c35b4-5229-4e90-bc56-145c74b345c9
+2026-11-11T10:18:58.645+07:00  INFO 25628 --- [inventory-service] [scheduling-1] v.e.o.i.infrastructure.OutboxPublisher   : Inventory outbox published instanceId=inventory-2 eventId=cf66e8f9-564f-448c-91a0-0fc1537c48af orderId=3580d1e8-b8a0-419a-813e-e953b9c5809a topic=status-events eventType=Reserved

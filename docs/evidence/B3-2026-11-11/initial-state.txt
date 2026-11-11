@@ -1,0 +1,47 @@
+=== Command: .\scripts\reset-inventory.ps1 -Preset NORMAL ===
+Timestamp: 2026-11-11T10:09:45+07:00
+
+ Container distributed-order-inventory-inventory-db-1 Running 
+ Container distributed-order-inventory-inventory-db-1 Waiting 
+ Container distributed-order-inventory-inventory-db-1 Healthy 
+Resetting schema 'inventory' to preset NORMAL (GAO=1000, THIT_GA=1500)...
+DO
+BEGIN
+SET
+DELETE 0
+DELETE 0
+DELETE 0
+DELETE 0
+UPDATE 1
+UPDATE 1
+COMMIT
+ ingredient_id |  name   | unit | available_quantity |          updated_at           
+---------------+---------+------+--------------------+-------------------------------
+ GAO           | Gạo     | gram |               1000 | 2026-11-11 03:09:45.117091+00
+ THIT_GA       | Thịt gà | gram |               1500 | 2026-11-11 03:09:45.117091+00
+(2 rows)
+
+ decisions | reservations | processed_events | outbox_events 
+-----------+--------------+------------------+---------------
+         0 |            0 |                0 |             0
+(1 row)
+
+
+=== HTTP API initial check (port 8084) ===
+GET /actuator/health (8081): {"groups":["liveness","readiness"],"status":"UP"}
+GET /actuator/health (8084): {"groups":["liveness","readiness"],"status":"UP"}
+GET /actuator/health (18084): {"groups":["liveness","readiness"],"status":"UP"}
+GET /api/ingredients: [{"ingredientId":"GAO","name":"Gạo","unit":"gram","availableQuantity":1000,"updatedAt":"2026-11-11T03:09:45.117091Z"},{"ingredientId":"THIT_GA","name":"Thịt gà","unit":"gram","availableQuantity":1500,"updatedAt":"2026-11-11T03:09:45.117091Z"}]
+GET /api/recipes: [{"dishId":"CHAO_GA","ingredients":[{"ingredientId":"GAO","ingredientName":"Gạo","unit":"gram","quantityPerDish":50},{"ingredientId":"THIT_GA","ingredientName":"Thịt gà","unit":"gram","quantityPerDish":100}]},{"dishId":"COM_GA","ingredients":[{"ingredientId":"GAO","ingredientName":"Gạo","unit":"gram","quantityPerDish":100},{"ingredientId":"THIT_GA","ingredientName":"Thịt gà","unit":"gram","quantityPerDish":150}]}]
+GET /api/reservations/39d06204-a076-40c7-acb6-e4312fd3d9eb -> HTTP 404
+
+=== Guard check: reset-inventory.ps1 while 8084/18084 listening ===
+ExitCode: 1
+D:\distributed-order-system\scripts\reset-inventory.ps1 : Refusing reset: inventory service port(s) still listening: 
+8084, 18084. Stop inventory-service instances before resetting.
+At D:\distributed-order-system\scripts\reset-inventory.ps1:18 char:5
++     Write-Error ("Refusing reset: inventory service port(s) still lis ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,reset-inventory.ps1
+ 

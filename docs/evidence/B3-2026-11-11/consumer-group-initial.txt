@@ -1,0 +1,16 @@
+=== Consumer group inventory-v1 initial state (2 instances: inventory-1 @ 8084, inventory-2 @ 18084) ===
+Timestamp: 2026-11-11T10:13:54+07:00
+
+--describe --state:
+
+
+GROUP           COORDINATOR (ID)          ASSIGNMENT-STRATEGY  STATE                #MEMBERS
+inventory-v1    kafka-1:9092  (1)         range                Stable               2
+
+--describe:
+
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID
+inventory-v1    order-events    1          -               0               -               consumer-inventory-v1-1-b3102c89-294e-40dc-8676-5311ff812278 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-b3102c89-294e-40dc-8676-5311ff812278 /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    2          -               0               -               consumer-inventory-v1-1-e5c46bf0-98ea-4253-baa4-e6c4ca90eb97 /172.22.0.1     consumer-inventory-v1-1
