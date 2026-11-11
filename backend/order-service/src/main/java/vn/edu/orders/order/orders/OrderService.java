@@ -1,6 +1,5 @@
 package vn.edu.orders.order.orders;
 
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -16,6 +15,8 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
+import vn.edu.orders.contracts.events.OrderCreatedEvent;
+import vn.edu.orders.contracts.events.OrderItemLine;
 import vn.edu.orders.order.config.SiteProperties;
 import vn.edu.orders.order.menu.domain.MenuItem;
 import vn.edu.orders.order.menu.infrastructure.MenuItemRepository;
@@ -70,8 +71,10 @@ class OrderService {
         items.forEach(item -> store.insertItem(orderId, item));
 
         UUID eventId = UUID.randomUUID();
-        var event = new OrderCreated(eventId, 1, "OrderCreated", orderId, site.sourceType(), site.id(),
-                now.toInstant(), new EventPayload(items));
+        List<OrderItemLine> eventItems = items.stream()
+                .map(item -> new OrderItemLine(item.lineNo(), item.dishId(), item.dishName(), item.quantity()))
+                .toList();
+        var event = OrderCreatedEvent.v1(eventId, orderId, site.sourceType(), site.id(), now.toInstant(), eventItems);
         store.insertOrderCreated(eventId, orderId, json.writeValueAsString(event), now);
         return new Creation(store.byRequestId(request.clientRequestId()), true);
     }
@@ -87,13 +90,5 @@ class OrderService {
     }
 
     record Creation(OrderSummary order, boolean created) {
-    }
-
-    private record OrderCreated(UUID eventId, int schemaVersion, String eventType, UUID orderId,
-                                SiteProperties.SourceType sourceType, String sourceSiteId,
-                                Instant occurredAt, EventPayload payload) {
-    }
-
-    private record EventPayload(List<OrderDetails.Item> items) {
     }
 }

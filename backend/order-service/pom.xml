@@ -12,6 +12,11 @@
     <name>Order Service</name>
     <dependencies>
         <dependency>
+            <groupId>vn.edu.orders</groupId>
+            <artifactId>event-contracts</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>

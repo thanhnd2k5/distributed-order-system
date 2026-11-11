@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
+import vn.edu.orders.contracts.events.EventTopics;
+import vn.edu.orders.contracts.events.EventType;
 import vn.edu.orders.order.config.SiteProperties;
 
 @Repository
@@ -54,9 +56,11 @@ class OrderStore {
     void insertOrderCreated(UUID eventId, UUID orderId, String eventJson, OffsetDateTime now) {
         jdbc.sql("""
                 INSERT INTO %s (event_id, aggregate_id, event_type, topic, message_key, payload, created_at, next_attempt_at)
-                VALUES (:eventId, :orderId, 'OrderCreated', 'order-events', :messageKey, CAST(:payload AS jsonb), :now, :now)
+                VALUES (:eventId, :orderId, :eventType, :topic, :messageKey, CAST(:payload AS jsonb), :now, :now)
                 """.formatted(outboxEvents))
-                .param("eventId", eventId).param("orderId", orderId).param("messageKey", orderId.toString())
+                .param("eventId", eventId).param("orderId", orderId)
+                .param("eventType", EventType.OrderCreated.name()).param("topic", EventTopics.ORDER_EVENTS)
+                .param("messageKey", orderId.toString())
                 .param("payload", eventJson).param("now", now)
                 .update();
     }
