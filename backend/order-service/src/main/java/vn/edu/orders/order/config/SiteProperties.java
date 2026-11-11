@@ -11,6 +11,12 @@ import vn.edu.orders.contracts.events.SourceType;
 @ConfigurationProperties(prefix = "site")
 public record SiteProperties(
         @NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{0,49}") String id,
-        @NotNull SourceType sourceType
+        @NotNull SourceType sourceType,
+        String instanceId
 ) {
+    public SiteProperties {
+        if (instanceId == null || instanceId.isBlank()) {
+            instanceId = (id != null && !id.isBlank() ? id : "POS01") + "-1";
+        }
+    }
 }

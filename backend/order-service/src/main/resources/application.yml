@@ -36,11 +36,21 @@ spring:
         "[max.block.ms]": 2000
         "[request.timeout.ms]": 2000
         "[delivery.timeout.ms]": 5000
+    consumer:
+      group-id: ${ORDER_STATUS_GROUP_ID:order-status-${SITE_ID:POS01}-v1}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: record
+      auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
 outbox:
   enabled: ${OUTBOX_ENABLED:false}
 site:
   id: ${SITE_ID:POS01}
   source-type: ${SOURCE_TYPE:POS}
+  instance-id: ${INSTANCE_ID:${SITE_ID:POS01}-1}
 management:
   endpoints:
     web:
