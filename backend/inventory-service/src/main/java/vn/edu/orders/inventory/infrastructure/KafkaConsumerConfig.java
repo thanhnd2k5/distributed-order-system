@@ -2,12 +2,9 @@ package vn.edu.orders.inventory.infrastructure;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.config.ContainerCustomizer;
 import org.springframework.kafka.listener.CommonContainerStoppingErrorHandler;
 import org.springframework.kafka.listener.CommonDelegatingErrorHandler;
 import org.springframework.kafka.listener.CommonErrorHandler;
-import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
-import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 import tools.jackson.core.JacksonException;
@@ -31,10 +28,5 @@ public class KafkaConsumerConfig {
         delegating.addDelegate(InvalidEventException.class, poisonMessageHandler);
         delegating.addDelegate(JacksonException.class, poisonMessageHandler);
         return delegating;
-    }
-
-    @Bean
-    ContainerCustomizer<Object, Object, ConcurrentMessageListenerContainer<Object, Object>> ackModeCustomizer() {
-        return container -> container.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
     }
 }

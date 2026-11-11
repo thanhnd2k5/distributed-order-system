@@ -95,6 +95,13 @@ public class OrderEventsConsumer {
                     "Invalid OrderCreatedEvent JSON", readableEventId, readableOrderId, ex);
         }
 
+        if (event.orderId() != null
+                && record.key() != null
+                && !event.orderId().toString().equals(record.key())) {
+            log.warn("OrderCreated Kafka key does not match orderId instanceId={} topic={} partition={} offset={} eventId={} orderId={} kafkaKey={}",
+                    instanceId, topic, partition, offset, event.eventId(), event.orderId(), record.key());
+        }
+
         ReservationResult result;
         try {
             result = reservationService.processOrderCreated(event, new EventProcessingContext(partition, offset));

@@ -177,12 +177,15 @@ public class InventoryReservationStore {
                     reason_message = NULL,
                     updated_at = :now
                 WHERE order_id = :orderId
+                  AND decision = 'PROCESSING'
                 """.formatted(decisions))
                 .param("now", now)
                 .param("orderId", orderId)
                 .update();
         if (updated != 1) {
-            throw new IllegalStateException("Expected 1 decision row for RESERVED orderId=" + orderId);
+            throw new IllegalStateException(
+                    "Expected 1 PROCESSING decision row to mark RESERVED for orderId=" + orderId
+                            + ", updatedRows=" + updated);
         }
     }
 
@@ -199,6 +202,7 @@ public class InventoryReservationStore {
                     reason_message = :reasonMessage,
                     updated_at = :now
                 WHERE order_id = :orderId
+                  AND decision = 'PROCESSING'
                 """.formatted(decisions))
                 .param("reasonCode", reasonCode.name())
                 .param("reasonMessage", reasonMessage)
@@ -206,7 +210,9 @@ public class InventoryReservationStore {
                 .param("orderId", orderId)
                 .update();
         if (updated != 1) {
-            throw new IllegalStateException("Expected 1 decision row for FAILED orderId=" + orderId);
+            throw new IllegalStateException(
+                    "Expected 1 PROCESSING decision row to mark FAILED for orderId=" + orderId
+                            + ", updatedRows=" + updated);
         }
     }
 

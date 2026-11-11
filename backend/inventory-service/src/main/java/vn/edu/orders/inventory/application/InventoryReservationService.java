@@ -82,14 +82,18 @@ public class InventoryReservationService {
             return new ReservationResult(eventId, orderId, Outcome.DUPLICATE_EVENT, decision, reasonCode);
         }
 
-        // 2. Business idempotency by orderId (waits if another tx currently owns PROCESSING row)
+        // 2. Business idempotency by orderId.
+        // Concurrent insert on the same order_id blocks on the PK until the winner commits;
+        // after that this loser sees RESERVED/FAILED. A committed PROCESSING row is unexpected
+        // (winner must finish the decision in the same transaction) and is thrown so Kafka retries.
         if (!store.tryInsertProcessingDecision(orderId, event.sourceType(), event.sourceSiteId(), fingerprint, now)) {
             DecisionRecord existing = store.findDecision(orderId)
                     .orElseThrow(() -> new IllegalStateException(
                             "Order decision disappeared after conflict for orderId=" + orderId));
             if ("PROCESSING".equals(existing.decision())) {
                 throw new IllegalStateException(
-                        "Unexpected committed PROCESSING decision for orderId=" + orderId);
+                        "Unexpected committed PROCESSING decision for orderId=" + orderId
+                                + "; retrying until a terminal decision is visible");
             }
             if (existing.requestFingerprint().equals(fingerprint)) {
                 store.updateProcessedOutcome(eventId, Outcome.DUPLICATE_ORDER.name());
