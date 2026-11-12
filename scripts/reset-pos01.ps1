@@ -18,6 +18,11 @@ if ($busyPorts.Count -gt 0) {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $repoRoot 'infra/compose.base.yaml'
 
+& docker network inspect order-replication-net *> $null
+if ($LASTEXITCODE -ne 0) {
+    & docker network create order-replication-net | Out-Host
+}
+
 function Invoke-DockerCompose {
     param([string[]]$ComposeArgs)
     $prev = $ErrorActionPreference

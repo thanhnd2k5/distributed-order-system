@@ -2,6 +2,16 @@ name: distributed-order-base
 services:
   pos01-db:
     image: postgres:18.6
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_slot_wal_keep_size=1GB"
     environment:
       POSTGRES_DB: pos01_orders
       POSTGRES_USER: order_app
@@ -10,6 +20,11 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - pos01-data:/var/lib/postgresql
+    networks:
+      default:
+      order-replication-net:
+        aliases:
+          - pos01-db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U order_app -d pos01_orders"]
       interval: 3s
@@ -17,3 +32,8 @@ services:
       retries: 20
 volumes:
   pos01-data:
+networks:
+  # Named network created by this stack so B0 `compose.base.yaml up` works alone.
+  # POS02/ONLINE/central attach to the same name via external: true.
+  order-replication-net:
+    name: order-replication-net

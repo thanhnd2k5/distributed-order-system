@@ -22,5 +22,6 @@
         <module>order-service</module>
         <module>inventory-service</module>
         <module>kitchen-service</module>
+        <module>order-query-service</module>
     </modules>
 </project>

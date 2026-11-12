@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
-$servicePorts = @(8081, 18081, 8084, 18084, 8085, 18085)
+$servicePorts = @(8081, 18081, 8082, 18082, 8083, 18083, 8084, 18084, 8085, 18085)
 $listeners = [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
 $busyPorts = @($listeners | Where-Object { $_.Port -in $servicePorts } | Select-Object -ExpandProperty Port -Unique | Sort-Object)
 if ($busyPorts.Count -gt 0) {

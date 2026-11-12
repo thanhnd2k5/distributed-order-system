@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: order-query-service
+  mvc:
+    problemdetails:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/central_orders_db}
+    username: ${DB_USERNAME:query_reader}
+    password: ${DB_PASSWORD:query_demo}
+    hikari:
+      read-only: true
+      maximum-pool-size: 5
+  flyway:
+    enabled: true
+    url: ${FLYWAY_DB_URL:${DB_URL:jdbc:postgresql://localhost:5434/central_orders_db}}
+    user: ${FLYWAY_DB_USER:central_app}
+    password: ${FLYWAY_DB_PASSWORD:central_demo}
+    create-schemas: true
+    default-schema: ${REPORTING_SCHEMA:reporting}
+    schemas: ${REPORTING_SCHEMA:reporting}
+    placeholders:
+      pos01_schema: ${POS01_SCHEMA:pos01}
+      pos02_schema: ${POS02_SCHEMA:pos02}
+      online_schema: ${ONLINE_SCHEMA:online}
+      reporting_schema: ${REPORTING_SCHEMA:reporting}
+      reader_user: ${DB_USERNAME:query_reader}
+      reader_password: ${DB_PASSWORD:query_demo}
+query:
+  reporting-schema: ${REPORTING_SCHEMA:reporting}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

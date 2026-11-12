@@ -1,0 +1,164 @@
+openapi: 3.0.3
+info:
+  title: Central Order Query API
+  version: 1.0.0
+  description: Read-only reporting endpoints over the Central Order Replica (PostgreSQL logical replication).
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/reporting/orders:
+    get:
+      operationId: listReplicatedOrders
+      summary: List replicated orders across POS01, POS02, and ONLINE fragments
+      parameters:
+        - name: siteId
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [POS01, POS02, ONLINE]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING_INVENTORY, RESERVED, FAILED, DONE]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Replicated orders from reporting.all_orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingOrdersResponse'
+        '400':
+          description: Invalid siteId, status, or limit parameter
+  /api/reporting/orders/{orderId}:
+    get:
+      operationId: getReplicatedOrder
+      summary: Read a single replicated order and its line items from Central Order Replica
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order summary and items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingOrderDetailsResponse'
+        '400':
+          description: Invalid order ID (not a UUID)
+        '404':
+          description: Order not found in Central Order Replica (may not be replicated yet)
+  /api/reporting/summary:
+    get:
+      operationId: getReportingSummary
+      summary: Order counts grouped by site and status plus PostgreSQL subscription status
+      responses:
+        '200':
+          description: Summary counts and subscription status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingSummaryResponse'
+components:
+  schemas:
+    ReplicaEnvelope:
+      type: object
+      required: [replicaNote, queriedAt]
+      properties:
+        replicaNote:
+          type: string
+          description: Reminds clients that central data is asynchronous and may lag behind source sites.
+        queriedAt:
+          type: string
+          format: date-time
+          description: Wall-clock time of this API fetch; not a replication sync timestamp.
+    ReplicatedOrderSummary:
+      type: object
+      required: [orderId, sourceSiteId, sourceType, status, failureReason, version, createdAt, updatedAt]
+      properties:
+        orderId: { type: string, format: uuid }
+        sourceSiteId: { type: string, enum: [POS01, POS02, ONLINE] }
+        sourceType: { type: string, enum: [POS, ONLINE] }
+        status: { type: string, enum: [PENDING_INVENTORY, RESERVED, FAILED, DONE] }
+        failureReason: { type: string, nullable: true }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ReplicatedOrderItem:
+      type: object
+      required: [lineNo, dishId, dishName, quantity]
+      properties:
+        lineNo: { type: integer, minimum: 1 }
+        dishId: { type: string }
+        dishName: { type: string }
+        quantity: { type: integer, minimum: 1 }
+    SubscriptionStatus:
+      type: object
+      required: [subscriptionName, enabled]
+      properties:
+        subscriptionName: { type: string, example: pos01_sub }
+        enabled: { type: boolean }
+        workerPid: { type: integer, nullable: true, description: Null when the subscription worker is not running. }
+        lastMessageSendTime: { type: string, format: date-time, nullable: true }
+        lastMessageReceiptTime: { type: string, format: date-time, nullable: true }
+        latestEndTime: { type: string, format: date-time, nullable: true }
+    ReportingOrdersResponse:
+      allOf:
+        - $ref: '#/components/schemas/ReplicaEnvelope'
+        - type: object
+          required: [count, orders]
+          properties:
+            count: { type: integer, minimum: 0 }
+            orders:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplicatedOrderSummary'
+    ReportingOrderDetailsResponse:
+      allOf:
+        - $ref: '#/components/schemas/ReplicaEnvelope'
+        - type: object
+          required: [order, items]
+          properties:
+            order:
+              $ref: '#/components/schemas/ReplicatedOrderSummary'
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReplicatedOrderItem'
+    ReportingSummaryResponse:
+      allOf:
+        - $ref: '#/components/schemas/ReplicaEnvelope'
+        - type: object
+          required: [totalOrders, bySite, byStatus, subscriptions]
+          properties:
+            totalOrders: { type: integer, format: int64, minimum: 0 }
+            bySite:
+              type: object
+              additionalProperties:
+                type: integer
+                format: int64
+              example: { POS01: 1, POS02: 1, ONLINE: 1 }
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+                format: int64
+              example: { PENDING_INVENTORY: 0, RESERVED: 1, FAILED: 0, DONE: 2 }
+            subscriptions:
+              type: array
+              items:
+                $ref: '#/components/schemas/SubscriptionStatus'
