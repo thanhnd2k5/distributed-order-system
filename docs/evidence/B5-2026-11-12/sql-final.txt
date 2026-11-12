@@ -1,0 +1,72 @@
+=== POS01 DB (pos01.orders & order_items) ===
+               order_id               | site_id | source_type | status | version 
+--------------------------------------+---------+-------------+--------+---------
+ a6393c45-e99d-4580-bbae-ac86e8a795dd | POS01   | POS         | DONE   |       2
+ 772ee275-f45f-4087-875a-3f54a867ed7c | POS01   | POS         | DONE   |       2
+(2 rows)
+
+
+=== POS02 DB (pos02.orders & order_items) ===
+               order_id               | site_id | source_type |  status  | version 
+--------------------------------------+---------+-------------+----------+---------
+ a7c0296f-ca0e-474b-a1cd-ca17b7a5525d | POS02   | POS         | RESERVED |       1
+ 512aa874-12ec-493b-acd7-125945c30a4e | POS02   | POS         | RESERVED |       1
+(2 rows)
+
+
+=== ONLINE DB (online.orders & order_items) ===
+               order_id               | site_id | source_type |  status  | version 
+--------------------------------------+---------+-------------+----------+---------
+ 4ae8d940-6534-4e4c-87ca-6facedacfbc2 | ONLINE  | ONLINE      | DONE     |       2
+ 03c8992c-0182-44a9-82ce-b480bf794922 | ONLINE  | ONLINE      | RESERVED |       1
+(2 rows)
+
+
+=== CENTRAL DB (reporting.all_orders) ===
+               order_id               | site_id | source_type |  status  | version 
+--------------------------------------+---------+-------------+----------+---------
+ a6393c45-e99d-4580-bbae-ac86e8a795dd | POS01   | POS         | DONE     |       2
+ a7c0296f-ca0e-474b-a1cd-ca17b7a5525d | POS02   | POS         | RESERVED |       1
+ 4ae8d940-6534-4e4c-87ca-6facedacfbc2 | ONLINE  | ONLINE      | DONE     |       2
+ 772ee275-f45f-4087-875a-3f54a867ed7c | POS01   | POS         | DONE     |       2
+ 03c8992c-0182-44a9-82ce-b480bf794922 | ONLINE  | ONLINE      | RESERVED |       1
+ 512aa874-12ec-493b-acd7-125945c30a4e | POS02   | POS         | RESERVED |       1
+(6 rows)
+
+
+=== CENTRAL DB (count comparison: source fragments vs reporting view) ===
+ central_pos01 | central_pos02 | central_online | reporting_total | distinct_order_ids 
+---------------+---------------+----------------+-----------------+--------------------
+             2 |             2 |              2 |               6 |                  6
+(1 row)
+
+
+=== INVENTORY DB (ingredients & decisions) ===
+ ingredient_id | available_quantity 
+---------------+--------------------
+ GAO           |                350
+ THIT_GA       |                450
+(2 rows)
+
+               order_id               | source_site_id | decision 
+--------------------------------------+----------------+----------
+ a6393c45-e99d-4580-bbae-ac86e8a795dd | POS01          | RESERVED
+ a7c0296f-ca0e-474b-a1cd-ca17b7a5525d | POS02          | RESERVED
+ 4ae8d940-6534-4e4c-87ca-6facedacfbc2 | ONLINE         | RESERVED
+ 772ee275-f45f-4087-875a-3f54a867ed7c | POS01          | RESERVED
+ 03c8992c-0182-44a9-82ce-b480bf794922 | ONLINE         | RESERVED
+ 512aa874-12ec-493b-acd7-125945c30a4e | POS02          | RESERVED
+(6 rows)
+
+
+=== KITCHEN DB (kitchen_tickets) ===
+              ticket_id               |               order_id               | source_site_id | status  
+--------------------------------------+--------------------------------------+----------------+---------
+ 3df0a7f9-36b7-4eb9-8793-aee8582bb6c2 | a6393c45-e99d-4580-bbae-ac86e8a795dd | POS01          | DONE
+ 67d5f032-de93-4306-880d-74536dd3ff8b | a7c0296f-ca0e-474b-a1cd-ca17b7a5525d | POS02          | WAITING
+ 7acae165-4bbb-4527-801c-2fa7d319fa89 | 4ae8d940-6534-4e4c-87ca-6facedacfbc2 | ONLINE         | DONE
+ 9ded43c9-cc4d-40df-aa9c-a3c89673cd4f | 772ee275-f45f-4087-875a-3f54a867ed7c | POS01          | DONE
+ 2a8c9d8c-e281-43bd-8028-d3b0762b6c8c | 03c8992c-0182-44a9-82ce-b480bf794922 | ONLINE         | WAITING
+ 92d0f73f-7ae4-49ae-8779-4d450bc361fe | 512aa874-12ec-493b-acd7-125945c30a4e | POS02          | WAITING
+(6 rows)
+

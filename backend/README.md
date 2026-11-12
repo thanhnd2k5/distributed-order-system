@@ -1,15 +1,16 @@
-# Backend — Order Service (POS01), Inventory Service & Kitchen Service
+# Backend — Order Services (POS01/POS02/ONLINE), Inventory, Kitchen & Order Query Service
 
 Base Java 21, Spring Boot 4.1.2, Maven 3.10.0 qua Wrapper và PostgreSQL 18.6.
-Hiện gồm bốn module Maven dưới `backend/`:
+Hiện gồm năm module Maven dưới `backend/`:
 - `event-contracts`: record/enum dùng chung cho `OrderCreated`, `Reserved`, `Failed`, `Done` (`docs/contracts/events/*.v1.json`).
-- `order-service`: menu, Actuator health, luồng B1 tạo/đọc đơn, worker B2 gửi outbox `OrderCreated` lên Kafka (`order-events`), và consumer B4 đồng bộ trạng thái đơn từ `status-events` (`PENDING_INVENTORY -> RESERVED -> DONE/FAILED`).
+- `order-service`: menu, Actuator health, luồng B1 tạo/đọc đơn, worker B2 gửi outbox `OrderCreated` lên Kafka (`order-events`), và consumer B4 đồng bộ trạng thái đơn từ `status-events` (`PENDING_INVENTORY -> RESERVED -> DONE/FAILED`). Chạy tái sử dụng được cho cả `POS01` (`8081`), `POS02` (`8082`) và `ONLINE` (`8083`).
 - `inventory-service`: consumer B3 nhận `order-events`, giữ nguyên liệu nguyên tử trong PostgreSQL, chống trùng theo `eventId`/`orderId` và phát `Reserved`/`Failed` lên `status-events`.
 - `kitchen-service`: consumer B4 nhận `Reserved` từ `status-events`, quản lý vé bếp, cung cấp API danh sách vé, hoàn thành vé `POST /api/kitchen/tickets/{ticketId}/complete` và phát outbox `Done` lên `status-events`.
+- `order-query-service`: dịch vụ chỉ đọc B5 kết nối tới `central-db` (`5434`) bằng role `query_reader` (chỉ có `SELECT`), cung cấp API tổng hợp đa chi nhánh `/api/reporting/orders`, `/api/reporting/orders/{orderId}` và `/api/reporting/summary` trên view `reporting.all_orders`.
 
-Xem [contract HTTP](../docs/contracts/order-api.yaml) và [hướng dẫn làm việc song song](../docs/TEAM_START.md).
+Xem [contract Order HTTP](../docs/contracts/order-api.yaml), [contract Reporting HTTP](../docs/contracts/reporting-api.yaml) và [hướng dẫn làm việc song song](../docs/TEAM_START.md).
 
-Đã build và chạy thử B0 ngày 01/11/2026, B2, B3 và B4 ngày 11/11/2026 trên JDK 25 (compiler target 21). Xem [bằng chứng B0](../docs/evidence/B0-2026-11-01/README.md), [bằng chứng B2](../docs/evidence/B2-2026-11-11/README.md), [bằng chứng B3](../docs/evidence/B3-2026-11-11/README.md) và [bằng chứng B4](../docs/evidence/B4-2026-11-11/README.md).
+Đã build và chạy thử B0 ngày 01/11/2026, B2/B3/B4 ngày 11/11/2026, và B5 ngày 12/11/2026 trên JDK 25 (compiler target 21). Xem [bằng chứng B0](../docs/evidence/B0-2026-11-01/README.md), [bằng chứng B2](../docs/evidence/B2-2026-11-11/README.md), [bằng chứng B3](../docs/evidence/B3-2026-11-11/README.md), [bằng chứng B4](../docs/evidence/B4-2026-11-11/README.md) và [bằng chứng B5](../docs/evidence/B5-2026-11-12/README.md).
 
 ## Chạy local bằng PowerShell
 
@@ -17,6 +18,7 @@ Cần JDK 21 (hoặc JDK tương thích), Docker Desktop đang chạy và mạng
 Từ root repository:
 
 ```powershell
+# compose.base.yaml tạo network order-replication-net (dùng chung khi lên B5).
 docker compose -f infra/compose.base.yaml up -d --wait pos01-db
 Set-Location backend
 .\mvnw.cmd -version
@@ -219,10 +221,57 @@ java -jar kitchen-service/target/kitchen-service-0.0.1-SNAPSHOT.jar
 
 Xem kết quả kiểm chứng luồng khép kín D01, D02 kho từ chối, D04/D05 chống revert, D12 cách ly chi nhánh, D13 hội tụ ngược và Kafka outage tại [bằng chứng B4](../docs/evidence/B4-2026-11-11/README.md).
 
+## Replication đa nguồn & Order Query Service (B5)
+
+Từ root repository, khởi động toàn bộ 6 DB và cụm Kafka 3 broker chỉ với 1 lệnh (tự tạo network `order-replication-net` nếu chưa có):
+
+```powershell
+.\scripts\up-all-infra.ps1
+```
+
+Các DB bổ sung đều dùng PostgreSQL 18.6 với `wal_level=logical` ở phía publisher:
+- `pos02-db`: `infra/compose.pos02.yaml`, cổng `127.0.0.1:5437`, DB `pos02_orders`, schema `pos02`
+- `online-db`: `infra/compose.online.yaml`, cổng `127.0.0.1:5438`, DB `online_orders`, schema `online`
+- `central-db`: `infra/compose.central.yaml`, cổng `127.0.0.1:5434`, DB `central_orders_db`, chứa các schema mảnh `pos01`, `pos02`, `online` và view tổng hợp `reporting.all_orders`, `reporting.all_order_items`
+
+Khởi chạy `order-service` cho `POS02` (`8082`), `ONLINE` (`8083`) và `order-query-service` (`8080`) từ `backend/`:
+
+```powershell
+# Terminal POS02:
+$env:SERVER_PORT='8082'; $env:DB_URL='jdbc:postgresql://localhost:5437/pos02_orders'; $env:DB_SCHEMA='pos02'
+$env:SITE_ID='POS02'; $env:SOURCE_TYPE='POS'; $env:OUTBOX_ENABLED='true'
+java -jar order-service/target/order-service-0.0.1-SNAPSHOT.jar
+
+# Terminal ONLINE:
+$env:SERVER_PORT='8083'; $env:DB_URL='jdbc:postgresql://localhost:5438/online_orders'; $env:DB_SCHEMA='online'
+$env:SITE_ID='ONLINE'; $env:SOURCE_TYPE='ONLINE'; $env:OUTBOX_ENABLED='true'
+java -jar order-service/target/order-service-0.0.1-SNAPSHOT.jar
+
+# Terminal Order Query Service (read-only user query_reader):
+java -jar order-query-service/target/order-query-service-0.0.1-SNAPSHOT.jar
+```
+
+Sau khi các service đã khởi tạo bảng Flyway lần đầu, thiết lập tự động 3 publication (`pos01_pub`, `pos02_pub`, `online_pub`) và 3 subscription (`pos01_sub`, `pos02_sub`, `online_sub`) từ root repository:
+
+```powershell
+.\scripts\setup-replication.ps1
+# Sau khi reset-central (đã DROP subscription) hoặc muốn bật lại sub đang DISABLE:
+.\scripts\setup-replication.ps1 -EnableExisting
+```
+
+Script tiện ích bổ sung cho B5 (`scripts/`):
+- `.\scripts\up-all-infra.ps1`: bật tất cả DB, Kafka cluster và tạo topic.
+- `.\scripts\setup-replication.ps1`: bật rule `pg_hba.conf` cho replication, tạo publication/subscription idempotent và chờ initial sync `r`. Không tự `ENABLE` subscription đang tắt (tránh phá demo lag D11); dùng `-EnableExisting` khi cần.
+- `.\scripts\reset-pos02.ps1`, `.\scripts\reset-online.ps1`, `.\scripts\reset-central.ps1`: xóa dữ liệu test từng mảnh hoặc trung tâm. `reset-central` DROP subscription trước khi xóa hàng để tránh replica lệch, rồi cần chạy lại `setup-replication.ps1`.
+
+Dashboard React và bài thử nhiều instance (D12) nằm ngoài phạm vi đóng mốc B5/D11; xem [TEAM_START](../docs/TEAM_START.md).
+
+Xem kết quả kiểm chứng đa nguồn, mô phỏng replication lag (`DISABLE`/`ENABLE` subscription) và tính độc lập của Query Service theo kịch bản **D11** tại [bằng chứng B5](../docs/evidence/B5-2026-11-12/README.md).
+
 ## Build và test
 
-`.\mvnw.cmd -B -ntp clean verify` trong `backend/` chạy test cho cả 4 module (`event-contracts`, `order-service`, `inventory-service`, `kitchen-service`) trên PostgreSQL thật, nên cả ba container `pos01-db` (`5433`), `inventory-db` (`5435`) và `kitchen-db` (`5436`) phải đang healthy trước khi chạy toàn reactor. Có thể chạy riêng một module bằng `-pl kitchen-service -am` hoặc `-pl order-service -am`.
-Test dùng schema `b0_test`, `b1_test`, `b4_order_test`, `b4_order_kafka_test` (trên `pos01_orders`), `b3_test`, `b3_kafka_test` (trên `inventory_db`) và `b4_kitchen_skeleton_test`, `b4_kitchen_test`, `b4_kitchen_kafka_test` (trên `kitchen_db`). Các test Kafka dùng `@EmbeddedKafka` nên bộ `clean verify` độc lập với cụm Kafka Docker.
+`.\mvnw.cmd -B -ntp clean verify` trong `backend/` chạy test cho cả 5 module (`event-contracts`, `order-service`, `inventory-service`, `kitchen-service`, `order-query-service`) trên PostgreSQL thật, nên các container `pos01-db` (`5433`), `central-db` (`5434`), `inventory-db` (`5435`) và `kitchen-db` (`5436`) phải đang healthy trước khi chạy toàn reactor. Có thể chạy riêng một module bằng `-pl order-query-service -am` hoặc `-pl order-service -am`.
+Test dùng schema `b0_test`, `b1_test`, `b4_order_test`, `b4_order_kafka_test` (trên `pos01_orders`), `b3_test`, `b3_kafka_test` (trên `inventory_db`), `b4_kitchen_skeleton_test`, `b4_kitchen_test`, `b4_kitchen_kafka_test` (trên `kitchen_db`), và `b5_query_test_*` (trên `central_orders_db`). Các test Kafka dùng `@EmbeddedKafka` nên bộ `clean verify` độc lập với cụm Kafka Docker.
 Các bộ test kiểm tra kỹ lưỡng migration, health, đặt đơn đồng thời, giữ nguyên liệu nguyên tử, quản lý vé bếp, hoàn thành vé nguyên tử kèm outbox, ma trận chuyển trạng thái đơn D13, chống revert khi trễ sự kiện, và cách ly lỗi đa chi nhánh.
 Schema test được giữ để kiểm tra; không dùng DB có dữ liệu quan trọng làm DB test.
 

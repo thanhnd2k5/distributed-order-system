@@ -1,0 +1,141 @@
+=== D11 Subscription Disable (Replication Lag) & Enable (Catch-Up) ===
+POS01 Lag Order ID: 772ee275-f45f-4087-875a-3f54a867ed7c
+ONLINE Live Order ID (while POS01 disabled): 03c8992c-0182-44a9-82ce-b480bf794922
+
+--- pg_subscription after DISABLE pos01_sub ---
+  subname   | subenabled 
+------------+------------
+ online_sub | t
+ pos01_sub  | f
+ pos02_sub  | t
+(3 rows)
+
+
+--- POS01 Source API status during lag (should be DONE) ---
+{
+    "order":  {
+                  "orderId":  "772ee275-f45f-4087-875a-3f54a867ed7c",
+                  "sourceSiteId":  "POS01",
+                  "status":  "DONE",
+                  "failureReason":  null,
+                  "createdAt":  "2026-11-12T11:23:54.448326Z"
+              },
+    "items":  [
+                  {
+                      "lineNo":  1,
+                      "dishId":  "CHAO_GA",
+                      "dishName":  "Cháo gà",
+                      "quantity":  1
+                  }
+              ]
+}
+
+--- Central Query API lookup for POS01 Lag Order during lag ---
+NOT_FOUND_IN_CENTRAL_AS_EXPECTED (The remote server returned an error: (404) Not Found.)
+
+--- Central Summary during lag (ONLINE increased to 2, POS01 still 1) ---
+{
+    "replicaNote":  "Central Order Replica (asynchronous logical replication; data may lag behind source sites)",
+    "queriedAt":  "2026-11-12T11:23:55.955119Z",
+    "totalOrders":  4,
+    "bySite":  {
+                   "POS01":  1,
+                   "POS02":  1,
+                   "ONLINE":  2
+               },
+    "byStatus":  {
+                     "PENDING_INVENTORY":  0,
+                     "RESERVED":  2,
+                     "FAILED":  0,
+                     "DONE":  2
+                 },
+    "subscriptions":  [
+                          {
+                              "subscriptionName":  "online_sub",
+                              "workerPid":  3250,
+                              "lastMessageSendTime":  "2026-11-12T11:23:55.126008Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:55.126299Z",
+                              "latestEndTime":  "2026-11-12T11:23:55.126008Z"
+                          },
+                          {
+                              "subscriptionName":  "pos01_sub",
+                              "workerPid":  null,
+                              "lastMessageSendTime":  null,
+                              "lastMessageReceiptTime":  null,
+                              "latestEndTime":  null
+                          },
+                          {
+                              "subscriptionName":  "pos02_sub",
+                              "workerPid":  3232,
+                              "lastMessageSendTime":  "2026-11-12T11:23:52.097779Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:52.098021Z",
+                              "latestEndTime":  "2026-11-12T11:23:52.097779Z"
+                          }
+                      ]
+}
+
+--- After ALTER SUBSCRIPTION pos01_sub ENABLE ---
+Catch-up convergence latency: 299.1 ms
+{
+    "replicaNote":  "Central Order Replica (asynchronous logical replication; data may lag behind source sites)",
+    "queriedAt":  "2026-11-12T11:23:56.254204400Z",
+    "order":  {
+                  "orderId":  "772ee275-f45f-4087-875a-3f54a867ed7c",
+                  "sourceSiteId":  "POS01",
+                  "sourceType":  "POS",
+                  "status":  "DONE",
+                  "failureReason":  null,
+                  "version":  2,
+                  "createdAt":  "2026-11-12T11:23:54.448326Z",
+                  "updatedAt":  "2026-11-12T11:23:55.459827Z"
+              },
+    "items":  [
+                  {
+                      "lineNo":  1,
+                      "dishId":  "CHAO_GA",
+                      "dishName":  "Cháo gà",
+                      "quantity":  1
+                  }
+              ]
+}
+
+--- Central Summary after catch-up (POS01=2, POS02=1, ONLINE=2, Total=5) ---
+{
+    "replicaNote":  "Central Order Replica (asynchronous logical replication; data may lag behind source sites)",
+    "queriedAt":  "2026-11-12T11:23:56.268914900Z",
+    "totalOrders":  5,
+    "bySite":  {
+                   "POS01":  2,
+                   "POS02":  1,
+                   "ONLINE":  2
+               },
+    "byStatus":  {
+                     "PENDING_INVENTORY":  0,
+                     "RESERVED":  2,
+                     "FAILED":  0,
+                     "DONE":  3
+                 },
+    "subscriptions":  [
+                          {
+                              "subscriptionName":  "online_sub",
+                              "workerPid":  3250,
+                              "lastMessageSendTime":  "2026-11-12T11:23:55.126008Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:55.126299Z",
+                              "latestEndTime":  "2026-11-12T11:23:55.126008Z"
+                          },
+                          {
+                              "subscriptionName":  "pos01_sub",
+                              "workerPid":  4277,
+                              "lastMessageSendTime":  "2026-11-12T11:23:56.229609Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:56.230664Z",
+                              "latestEndTime":  "2026-11-12T11:23:56.229609Z"
+                          },
+                          {
+                              "subscriptionName":  "pos02_sub",
+                              "workerPid":  3232,
+                              "lastMessageSendTime":  "2026-11-12T11:23:52.097779Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:52.098021Z",
+                              "latestEndTime":  "2026-11-12T11:23:52.097779Z"
+                          }
+                      ]
+}

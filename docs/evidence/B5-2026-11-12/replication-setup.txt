@@ -1,0 +1,36 @@
+1. Ensuring Docker replication network (order-replication-net)...
+2. Ensuring all publisher DBs and central-db are up and healthy...
+3. Checking wal_level, pg_hba replication rules, tables, and publications...
+  [OK] POS01: wal_level=logical, pg_hba replication ready, publication pos01_pub ready.
+  [OK] POS02: wal_level=logical, pg_hba replication ready, publication pos02_pub ready.
+  [OK] ONLINE: wal_level=logical, pg_hba replication ready, publication online_pub ready.
+4. Checking central-db schemas and creating subscriptions...
+  [EXISTS] Subscription pos01_sub enabled.
+  [EXISTS] Subscription pos02_sub enabled.
+  [EXISTS] Subscription online_sub enabled.
+5. Waiting for initial sync of all 6 replicated tables...
+=== Central Subscription Status ===
+  subname   | subenabled 
+------------+------------
+ online_sub | t
+ pos01_sub  | t
+ pos02_sub  | t
+(3 rows)
+
+  subname   | pid  | relid | received_lsn | latest_end_lsn |        latest_end_time        
+------------+------+-------+--------------+----------------+-------------------------------
+ online_sub | 3250 |       | 0/1C8ED00    | 0/1C8ED00      | 2026-11-12 11:22:50.270764+00
+ pos01_sub  | 3207 |       | 0/215B8E0    | 0/215B8E0      | 2026-11-12 11:22:39.33152+00
+ pos02_sub  | 3232 |       | 0/1C8EB08    | 0/1C8EB08      | 2026-11-12 11:22:49.673248+00
+(3 rows)
+
+  subname   |     table_name     | state 
+------------+--------------------+-------
+ online_sub | online.orders      | r
+ online_sub | online.order_items | r
+ pos01_sub  | pos01.orders       | r
+ pos01_sub  | pos01.order_items  | r
+ pos02_sub  | pos02.orders       | r
+ pos02_sub  | pos02.order_items  | r
+(6 rows)
+

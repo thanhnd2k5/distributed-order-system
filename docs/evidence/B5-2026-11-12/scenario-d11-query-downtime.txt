@@ -1,0 +1,44 @@
+=== D11 Query Service Downtime Independence ===
+Stopped order-query-service (8080). Created POS02 Order: 512aa874-12ec-493b-acd7-125945c30a4e
+POS02 Order status at source while Query Service stopped:
+{
+    "order":  {
+                  "orderId":  "512aa874-12ec-493b-acd7-125945c30a4e",
+                  "sourceSiteId":  "POS02",
+                  "status":  "RESERVED",
+                  "failureReason":  null,
+                  "createdAt":  "2026-11-12T11:23:56.315290Z"
+              },
+    "items":  [
+                  {
+                      "lineNo":  1,
+                      "dishId":  "COM_GA",
+                      "dishName":  "Cơm gà",
+                      "quantity":  1
+                  }
+              ]
+}
+
+Restarted order-query-service (8080). Queried Central Replica for 512aa874-12ec-493b-acd7-125945c30a4e:
+{
+    "replicaNote":  "Central Order Replica (asynchronous logical replication; data may lag behind source sites)",
+    "queriedAt":  "2026-11-12T11:24:01.702167100Z",
+    "order":  {
+                  "orderId":  "512aa874-12ec-493b-acd7-125945c30a4e",
+                  "sourceSiteId":  "POS02",
+                  "sourceType":  "POS",
+                  "status":  "RESERVED",
+                  "failureReason":  null,
+                  "version":  1,
+                  "createdAt":  "2026-11-12T11:23:56.315290Z",
+                  "updatedAt":  "2026-11-12T11:23:57.174685Z"
+              },
+    "items":  [
+                  {
+                      "lineNo":  1,
+                      "dishId":  "COM_GA",
+                      "dishName":  "Cơm gà",
+                      "quantity":  1
+                  }
+              ]
+}

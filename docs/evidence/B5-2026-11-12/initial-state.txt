@@ -1,0 +1,75 @@
+=== Health Checks ===
+query (8080): {"groups":["liveness","readiness"],"status":"UP"}
+pos01 (8081): {"groups":["liveness","readiness"],"status":"UP"}
+pos02 (8082): {"groups":["liveness","readiness"],"status":"UP"}
+online (8083): {"groups":["liveness","readiness"],"status":"UP"}
+inventory (8084): {"groups":["liveness","readiness"],"status":"UP"}
+kitchen (8085): {"groups":["liveness","readiness"],"status":"UP"}
+
+=== Initial Central Summary ===
+{
+    "replicaNote":  "Central Order Replica (asynchronous logical replication; data may lag behind source sites)",
+    "queriedAt":  "2026-11-12T11:23:46.451766Z",
+    "totalOrders":  0,
+    "bySite":  {
+                   "POS01":  0,
+                   "POS02":  0,
+                   "ONLINE":  0
+               },
+    "byStatus":  {
+                     "PENDING_INVENTORY":  0,
+                     "RESERVED":  0,
+                     "FAILED":  0,
+                     "DONE":  0
+                 },
+    "subscriptions":  [
+                          {
+                              "subscriptionName":  "online_sub",
+                              "workerPid":  3250,
+                              "lastMessageSendTime":  "2026-11-12T11:23:20.280628Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:20.280743Z",
+                              "latestEndTime":  "2026-11-12T11:23:20.280628Z"
+                          },
+                          {
+                              "subscriptionName":  "pos01_sub",
+                              "workerPid":  3207,
+                              "lastMessageSendTime":  "2026-11-12T11:23:40.264796Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:40.264882Z",
+                              "latestEndTime":  "2026-11-12T11:23:40.264796Z"
+                          },
+                          {
+                              "subscriptionName":  "pos02_sub",
+                              "workerPid":  3232,
+                              "lastMessageSendTime":  "2026-11-12T11:23:19.779841Z",
+                              "lastMessageReceiptTime":  "2026-11-12T11:23:19.779930Z",
+                              "latestEndTime":  "2026-11-12T11:23:19.779841Z"
+                          }
+                      ]
+}
+
+=== Consumer Groups ===
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                  HOST            CLIENT-ID
+inventory-v1    order-events    2          -               0               -               consumer-inventory-v1-1-ffed79f6-6c5a-4781-b5da-cf0130e0ab7e /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    1          -               0               -               consumer-inventory-v1-1-ffed79f6-6c5a-4781-b5da-cf0130e0ab7e /172.22.0.1     consumer-inventory-v1-1
+inventory-v1    order-events    0          -               0               -               consumer-inventory-v1-1-ffed79f6-6c5a-4781-b5da-cf0130e0ab7e /172.22.0.1     consumer-inventory-v1-1
+
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                HOST            CLIENT-ID
+kitchen-v1      status-events   2          -               0               -               consumer-kitchen-v1-1-1b6861cf-c52d-4b33-8bdc-1e393f8e0b88 /172.22.0.1     consumer-kitchen-v1-1
+kitchen-v1      status-events   1          -               0               -               consumer-kitchen-v1-1-1b6861cf-c52d-4b33-8bdc-1e393f8e0b88 /172.22.0.1     consumer-kitchen-v1-1
+kitchen-v1      status-events   0          -               0               -               consumer-kitchen-v1-1-1b6861cf-c52d-4b33-8bdc-1e393f8e0b88 /172.22.0.1     consumer-kitchen-v1-1
+
+GROUP                  TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                            HOST            CLIENT-ID
+order-status-ONLINE-v1 status-events   2          -               0               -               consumer-order-status-ONLINE-v1-1-2bfa6d7a-4b09-458f-a5fc-90ec8cd18942 /172.22.0.1     consumer-order-status-ONLINE-v1-1
+order-status-ONLINE-v1 status-events   1          -               0               -               consumer-order-status-ONLINE-v1-1-2bfa6d7a-4b09-458f-a5fc-90ec8cd18942 /172.22.0.1     consumer-order-status-ONLINE-v1-1
+order-status-ONLINE-v1 status-events   0          -               0               -               consumer-order-status-ONLINE-v1-1-2bfa6d7a-4b09-458f-a5fc-90ec8cd18942 /172.22.0.1     consumer-order-status-ONLINE-v1-1
+
+GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID
+order-status-POS01-v1 status-events   2          -               0               -               consumer-order-status-POS01-v1-1-1ede793e-0f99-451e-8ba6-3f1d66c2dde6 /172.22.0.1     consumer-order-status-POS01-v1-1
+order-status-POS01-v1 status-events   1          -               0               -               consumer-order-status-POS01-v1-1-1ede793e-0f99-451e-8ba6-3f1d66c2dde6 /172.22.0.1     consumer-order-status-POS01-v1-1
+order-status-POS01-v1 status-events   0          -               0               -               consumer-order-status-POS01-v1-1-1ede793e-0f99-451e-8ba6-3f1d66c2dde6 /172.22.0.1     consumer-order-status-POS01-v1-1
+
+GROUP                 TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                                           HOST            CLIENT-ID
+order-status-POS02-v1 status-events   2          -               0               -               consumer-order-status-POS02-v1-1-f7fb9f45-bb24-454d-9bc9-8610777ae61f /172.22.0.1     consumer-order-status-POS02-v1-1
+order-status-POS02-v1 status-events   1          -               0               -               consumer-order-status-POS02-v1-1-f7fb9f45-bb24-454d-9bc9-8610777ae61f /172.22.0.1     consumer-order-status-POS02-v1-1
+order-status-POS02-v1 status-events   0          -               0               -               consumer-order-status-POS02-v1-1-f7fb9f45-bb24-454d-9bc9-8610777ae61f /172.22.0.1     consumer-order-status-POS02-v1-1
