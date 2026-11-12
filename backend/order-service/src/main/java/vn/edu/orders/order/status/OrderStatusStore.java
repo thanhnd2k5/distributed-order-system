@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -22,25 +21,21 @@ public class OrderStatusStore {
     }
 
     public boolean tryInsertProcessedEvent(UUID eventId, UUID orderId, String eventType, OffsetDateTime now) {
-        try {
-            int inserted = jdbc.sql("""
-                    INSERT INTO %s (event_id, order_id, event_type, processed_at, outcome)
-                    VALUES (:eventId, :orderId, :eventType, :now, 'SUCCESS')
-                    ON CONFLICT (event_id) DO NOTHING
-                    """.formatted(processedEvents))
-                    .param("eventId", eventId)
-                    .param("orderId", orderId)
-                    .param("eventType", eventType)
-                    .param("now", now)
-                    .update();
-            return inserted == 1;
-        } catch (DuplicateKeyException e) {
-            return false;
-        }
+        int inserted = jdbc.sql("""
+                INSERT INTO %s (event_id, order_id, event_type, processed_at, outcome)
+                VALUES (:eventId, :orderId, :eventType, :now, 'SUCCESS')
+                ON CONFLICT (event_id) DO NOTHING
+                """.formatted(processedEvents))
+                .param("eventId", eventId)
+                .param("orderId", orderId)
+                .param("eventType", eventType)
+                .param("now", now)
+                .update();
+        return inserted == 1;
     }
 
     public void updateProcessedOutcome(UUID eventId, String outcome) {
-        jdbc.sql("""
+        int updated = jdbc.sql("""
                 UPDATE %s
                 SET outcome = :outcome
                 WHERE event_id = :eventId
@@ -48,6 +43,10 @@ public class OrderStatusStore {
                 .param("outcome", outcome)
                 .param("eventId", eventId)
                 .update();
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "Expected 1 processed_events row for eventId=" + eventId + ", got " + updated);
+        }
     }
 
     public record OrderRecord(

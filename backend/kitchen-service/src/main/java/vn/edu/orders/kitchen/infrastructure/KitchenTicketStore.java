@@ -202,23 +202,24 @@ public class KitchenTicketStore {
         String sql;
         JdbcClient.StatementSpec spec;
         if (statusFilter != null && !statusFilter.isBlank()) {
+            String orderBy = "DONE".equals(statusFilter)
+                    ? "completed_at DESC, ticket_id DESC"
+                    : "created_at ASC, ticket_id ASC";
             sql = """
                     SELECT ticket_id, order_id, source_type, source_site_id, status, created_at, completed_at
                     FROM %s
                     WHERE status = :status
-                    ORDER BY CASE WHEN status = 'WAITING' THEN created_at END ASC,
-                             completed_at DESC,
-                             ticket_id DESC
+                    ORDER BY %s
                     LIMIT 100
-                    """.formatted(tickets);
+                    """.formatted(tickets, orderBy);
             spec = jdbc.sql(sql).param("status", statusFilter);
         } else {
             sql = """
                     SELECT ticket_id, order_id, source_type, source_site_id, status, created_at, completed_at
                     FROM %s
                     ORDER BY CASE WHEN status = 'WAITING' THEN 0 ELSE 1 END,
-                             created_at ASC,
-                             completed_at DESC,
+                             CASE WHEN status = 'WAITING' THEN created_at END ASC NULLS LAST,
+                             completed_at DESC NULLS LAST,
                              ticket_id DESC
                     LIMIT 100
                     """.formatted(tickets);

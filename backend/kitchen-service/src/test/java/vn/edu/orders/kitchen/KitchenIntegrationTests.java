@@ -314,6 +314,10 @@ class KitchenIntegrationTests {
         assertThat(doneResp.statusCode()).isEqualTo(200);
         assertThat(JsonPath.<List<String>>read(doneResp.body(), "$[*].ticketId"))
                 .containsExactly(r1.ticketId().toString());
+
+        var all = get("/api/kitchen/tickets");
+        assertThat(JsonPath.<List<String>>read(all.body(), "$[*].status"))
+                .containsExactly("WAITING", "DONE");
     }
 
     @Test

@@ -1,5 +1,6 @@
 package vn.edu.orders.order.status;
 
+import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,71 +35,112 @@ public class OrderStatusConsumer {
     }
 
     @KafkaListener(
-            id = "order-status-consumer",
+            id = LISTENER_ID,
             topics = EventTopics.STATUS_EVENTS,
             groupId = "#{@orderStatusGroupId}"
     )
     public void onMessage(ConsumerRecord<String, String> record) {
+        String raw = record.value();
+        if (raw == null || raw.isBlank()) {
+            poison(record, "Empty event payload", null, null);
+        }
+
         JsonNode root;
         try {
-            root = mapper.readTree(record.value());
+            root = mapper.readTree(raw);
         } catch (JacksonException e) {
-            log.error("Failed to parse status event JSON from topic={} partition={} offset={}",
-                    record.topic(), record.partition(), record.offset(), e);
+            log.error("Poison status event (malformed JSON) service=order-service siteId={} topic={} partition={} offset={}",
+                    siteProperties.id(), record.topic(), record.partition(), record.offset(), e);
             throw new InvalidEventException("Malformed JSON record in " + record.topic(), e);
         }
 
         if (root == null || !root.isObject()) {
-            throw new InvalidEventException("Status event is not a JSON object: " + record.value());
+            poison(record, "Status event is not a JSON object", null, null);
         }
 
-        // Blast-radius isolation: skip foreign site events before any deeper deserialization
+        UUID eventId = tryReadUuid(root, "eventId");
+        UUID orderId = tryReadUuid(root, "orderId");
+
         String sourceSiteId = root.path("sourceSiteId").asText(null);
         if (sourceSiteId == null || !sourceSiteId.equals(siteProperties.id())) {
-            log.debug("OrderStatusConsumer skipping foreign site event siteId={} sourceSiteId={} topic={} partition={} offset={}",
-                    siteProperties.id(), sourceSiteId, record.topic(), record.partition(), record.offset());
+            log.info("Status event skipped for foreign site service=order-service siteId={} sourceSiteId={} topic={} partition={} offset={} eventId={} orderId={}",
+                    siteProperties.id(), sourceSiteId, record.topic(), record.partition(), record.offset(), eventId, orderId);
             return;
         }
 
-        // Schema version check for matching site
-        int schemaVersion = root.path("schemaVersion").asInt(-1);
-        if (schemaVersion != 1) {
-            throw new InvalidEventException("Unsupported schemaVersion=" + schemaVersion + " for siteId=" + siteProperties.id());
+        JsonNode schemaNode = root.get("schemaVersion");
+        if (schemaNode == null || !schemaNode.isInt() || schemaNode.asInt() != EventTopics.SCHEMA_VERSION_1) {
+            String schemaText = schemaNode == null ? "missing" : schemaNode.toString();
+            poison(record, "Unsupported schemaVersion=" + schemaText + " for siteId=" + siteProperties.id(), eventId, orderId);
         }
 
-        String eventType = root.path("eventType").asText("");
+        JsonNode eventTypeNode = root.get("eventType");
+        if (eventTypeNode == null || !eventTypeNode.isString() || eventTypeNode.asString().isBlank()) {
+            poison(record, "Missing or invalid eventType", eventId, orderId);
+        }
+
+        String eventType = eventTypeNode.asString();
+        StatusEventContext context = new StatusEventContext(record.partition(), record.offset());
         switch (eventType) {
             case "Reserved" -> {
-                ReservedEvent event;
-                try {
-                    event = mapper.treeToValue(root, ReservedEvent.class);
-                } catch (JacksonException e) {
-                    throw new InvalidEventException("Failed to bind ReservedEvent", e);
-                }
-                syncService.processReserved(event);
+                ReservedEvent event = bind(record, root, ReservedEvent.class, "ReservedEvent", eventId, orderId);
+                apply(record, event.eventId(), event.orderId(), () -> syncService.processReserved(event, context));
             }
             case "Failed" -> {
-                FailedEvent event;
-                try {
-                    event = mapper.treeToValue(root, FailedEvent.class);
-                } catch (JacksonException e) {
-                    throw new InvalidEventException("Failed to bind FailedEvent", e);
-                }
-                syncService.processFailed(event);
+                FailedEvent event = bind(record, root, FailedEvent.class, "FailedEvent", eventId, orderId);
+                apply(record, event.eventId(), event.orderId(), () -> syncService.processFailed(event, context));
             }
             case "Done" -> {
-                DoneEvent event;
-                try {
-                    event = mapper.treeToValue(root, DoneEvent.class);
-                } catch (JacksonException e) {
-                    throw new InvalidEventException("Failed to bind DoneEvent", e);
-                }
-                syncService.processDone(event);
+                DoneEvent event = bind(record, root, DoneEvent.class, "DoneEvent", eventId, orderId);
+                apply(record, event.eventId(), event.orderId(), () -> syncService.processDone(event, context));
             }
-            default -> {
-                log.info("OrderStatusConsumer ignored unexpected eventType={} siteId={} topic={} partition={} offset={}",
-                        eventType, siteProperties.id(), record.topic(), record.partition(), record.offset());
-            }
+            default -> log.info("Status event ignored unexpected type service=order-service siteId={} eventType={} topic={} partition={} offset={} eventId={} orderId={}",
+                    siteProperties.id(), eventType, record.topic(), record.partition(), record.offset(), eventId, orderId);
+        }
+    }
+
+    private <T> T bind(
+            ConsumerRecord<String, String> record,
+            JsonNode root,
+            Class<T> type,
+            String name,
+            UUID eventId,
+            UUID orderId
+    ) {
+        try {
+            return mapper.treeToValue(root, type);
+        } catch (JacksonException e) {
+            log.error("Poison status event (contract deserialization) service=order-service siteId={} topic={} partition={} offset={} eventId={} orderId={} type={}",
+                    siteProperties.id(), record.topic(), record.partition(), record.offset(), eventId, orderId, name, e);
+            throw new InvalidEventException("Failed to bind " + name, e);
+        }
+    }
+
+    private void apply(ConsumerRecord<String, String> record, UUID eventId, UUID orderId, Runnable action) {
+        try {
+            action.run();
+        } catch (InvalidEventException ex) {
+            log.error("Poison status event (contract validation) service=order-service siteId={} topic={} partition={} offset={} eventId={} orderId={}: {}",
+                    siteProperties.id(), record.topic(), record.partition(), record.offset(), eventId, orderId, ex.getMessage());
+            throw ex;
+        }
+    }
+
+    private void poison(ConsumerRecord<String, String> record, String message, UUID eventId, UUID orderId) {
+        log.error("Poison status event service=order-service siteId={} topic={} partition={} offset={} eventId={} orderId={}: {}",
+                siteProperties.id(), record.topic(), record.partition(), record.offset(), eventId, orderId, message);
+        throw new InvalidEventException(message);
+    }
+
+    private UUID tryReadUuid(JsonNode root, String field) {
+        JsonNode node = root.get(field);
+        if (node == null || !node.isString()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(node.asString());
+        } catch (IllegalArgumentException ignored) {
+            return null;
         }
     }
 }

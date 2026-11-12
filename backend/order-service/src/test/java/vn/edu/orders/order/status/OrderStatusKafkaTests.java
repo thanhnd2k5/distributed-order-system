@@ -223,6 +223,89 @@ class OrderStatusKafkaTests {
         assertThat(committedOffset(2)).isEqualTo(1L);
     }
 
+    @Test
+    void missingEventTypeForMatchingSiteStopsContainerWithoutCommittingOffset() throws Exception {
+        MessageListenerContainer container = waitForListenerAssignment();
+
+        UUID orderId = UUID.randomUUID();
+        createOrder(orderId, UUID.randomUUID(), "PENDING_INVENTORY");
+        ReservedEvent reserved = ReservedEvent.v1(
+                UUID.randomUUID(),
+                orderId,
+                SourceType.POS,
+                "POS01",
+                Instant.now(),
+                orderId,
+                List.of(new OrderItemLine(1, "COM_GA", "Cơm gà", 1))
+        );
+        kafkaTemplate.send(EventTopics.STATUS_EVENTS, 0, orderId.toString(), mapper.writeValueAsString(reserved))
+                .get(10, TimeUnit.SECONDS);
+        awaitCondition(Duration.ofSeconds(15), () -> committedOffset(0) == 1L);
+
+        UUID nextOrderId = UUID.randomUUID();
+        createOrder(nextOrderId, UUID.randomUUID(), "PENDING_INVENTORY");
+        String missingType = """
+                {
+                  "eventId": "%s",
+                  "schemaVersion": 1,
+                  "orderId": "%s",
+                  "sourceType": "POS",
+                  "sourceSiteId": "POS01",
+                  "occurredAt": "2026-11-11T00:00:00Z"
+                }
+                """.formatted(UUID.randomUUID(), nextOrderId);
+
+        kafkaTemplate.send(EventTopics.STATUS_EVENTS, 0, nextOrderId.toString(), missingType)
+                .get(10, TimeUnit.SECONDS);
+
+        awaitCondition(Duration.ofSeconds(15), () -> !container.isRunning());
+        assertThat(committedOffset(0)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM b4_order_kafka_test.orders WHERE order_id = ?",
+                String.class, nextOrderId)).isEqualTo("PENDING_INVENTORY");
+    }
+
+    @Test
+    void doneEventWithoutPayloadStopsContainerWithoutChangingOrder() throws Exception {
+        MessageListenerContainer container = waitForListenerAssignment();
+
+        UUID orderId = UUID.randomUUID();
+        createOrder(orderId, UUID.randomUUID(), "PENDING_INVENTORY");
+        ReservedEvent reserved = ReservedEvent.v1(
+                UUID.randomUUID(),
+                orderId,
+                SourceType.POS,
+                "POS01",
+                Instant.now(),
+                orderId,
+                List.of(new OrderItemLine(1, "COM_GA", "Cơm gà", 1))
+        );
+        kafkaTemplate.send(EventTopics.STATUS_EVENTS, 1, orderId.toString(), mapper.writeValueAsString(reserved))
+                .get(10, TimeUnit.SECONDS);
+        awaitCondition(Duration.ofSeconds(15), () -> committedOffset(1) == 1L);
+
+        String doneWithoutPayload = """
+                {
+                  "eventId": "%s",
+                  "schemaVersion": 1,
+                  "eventType": "Done",
+                  "orderId": "%s",
+                  "sourceType": "POS",
+                  "sourceSiteId": "POS01",
+                  "occurredAt": "2026-11-11T00:00:00Z",
+                  "payload": null
+                }
+                """.formatted(UUID.randomUUID(), orderId);
+        kafkaTemplate.send(EventTopics.STATUS_EVENTS, 1, orderId.toString(), doneWithoutPayload)
+                .get(10, TimeUnit.SECONDS);
+
+        awaitCondition(Duration.ofSeconds(15), () -> !container.isRunning());
+        assertThat(committedOffset(1)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM b4_order_kafka_test.orders WHERE order_id = ?",
+                String.class, orderId)).isEqualTo("RESERVED");
+    }
+
     private MessageListenerContainer waitForListenerAssignment() throws Exception {
         MessageListenerContainer container = listenerRegistry.getListenerContainer(OrderStatusConsumer.LISTENER_ID);
         assertThat(container).isNotNull();

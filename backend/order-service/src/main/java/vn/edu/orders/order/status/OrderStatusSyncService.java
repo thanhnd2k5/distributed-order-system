@@ -14,10 +14,18 @@ import vn.edu.orders.contracts.events.DoneEvent;
 import vn.edu.orders.contracts.events.FailedEvent;
 import vn.edu.orders.contracts.events.ReservedEvent;
 import vn.edu.orders.order.config.SiteProperties;
+import vn.edu.orders.order.status.OrderStatusStore.OrderRecord;
 
 @Service
 public class OrderStatusSyncService {
     private static final Logger log = LoggerFactory.getLogger(OrderStatusSyncService.class);
+
+    static final String SUCCESS = "SUCCESS";
+    static final String ALREADY_APPLIED = "ALREADY_APPLIED";
+    static final String SKIPPED_DUPLICATE = "SKIPPED_DUPLICATE";
+    static final String ORDER_NOT_FOUND = "ORDER_NOT_FOUND";
+    static final String TERMINAL_STATE_IGNORED = "TERMINAL_STATE_IGNORED";
+    static final String ILLEGAL_TRANSITION_IGNORED = "ILLEGAL_TRANSITION_IGNORED";
 
     private final OrderStatusStore store;
     private final TransactionTemplate readCommittedTx;
@@ -39,137 +47,142 @@ public class OrderStatusSyncService {
     public record StatusSyncResult(UUID eventId, UUID orderId, String outcome) {}
 
     public StatusSyncResult processReserved(ReservedEvent event) {
-        return readCommittedTx.execute(status -> {
-            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-            boolean inserted = store.tryInsertProcessedEvent(event.eventId(), event.orderId(), event.eventType().name(), now);
-            if (!inserted) {
-                log.info("Duplicate event ignored siteId={} instanceId={} eventId={} orderId={} eventType={}",
-                        siteId, instanceId, event.eventId(), event.orderId(), event.eventType());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SKIPPED_DUPLICATE");
-            }
+        return processReserved(event, StatusEventContext.direct());
+    }
 
-            Optional<OrderStatusStore.OrderRecord> orderOpt = store.lockOrderForUpdate(event.orderId());
-            if (orderOpt.isEmpty()) {
-                log.error("Order not found for status event siteId={} instanceId={} orderId={} eventId={} eventType={}",
-                        siteId, instanceId, event.orderId(), event.eventId(), event.eventType());
-                store.updateProcessedOutcome(event.eventId(), "ORDER_NOT_FOUND");
-                return new StatusSyncResult(event.eventId(), event.orderId(), "ORDER_NOT_FOUND");
+    public StatusSyncResult processReserved(ReservedEvent event, StatusEventContext context) {
+        StatusEventValidator.validateReserved(event);
+        return inTransaction(event.eventId(), event.orderId(), event.eventType().name(), context, (order, now) -> {
+            String current = order.status();
+            if ("PENDING_INVENTORY".equals(current)) {
+                return transitioned(event.eventId(), order.orderId(), event.eventType().name(),
+                        current, "RESERVED", null, now, context);
             }
-
-            OrderStatusStore.OrderRecord order = orderOpt.get();
-            String currentStatus = order.status();
-
-            if ("PENDING_INVENTORY".equals(currentStatus)) {
-                store.updateOrderStatus(order.orderId(), "RESERVED", null, now);
-                store.updateProcessedOutcome(event.eventId(), "SUCCESS");
-                log.info("Order status transitioned to RESERVED siteId={} instanceId={} orderId={} eventId={}",
-                        siteId, instanceId, order.orderId(), event.eventId());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SUCCESS");
-            } else if ("RESERVED".equals(currentStatus)) {
-                store.updateProcessedOutcome(event.eventId(), "SUCCESS");
-                log.info("Order status already RESERVED siteId={} instanceId={} orderId={} eventId={}",
-                        siteId, instanceId, order.orderId(), event.eventId());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SUCCESS");
-            } else if ("DONE".equals(currentStatus)) {
-                log.info("Order already DONE, ignoring late ReservedEvent siteId={} instanceId={} orderId={} eventId={}",
-                        siteId, instanceId, order.orderId(), event.eventId());
-                store.updateProcessedOutcome(event.eventId(), "TERMINAL_STATE_IGNORED");
-                return new StatusSyncResult(event.eventId(), event.orderId(), "TERMINAL_STATE_IGNORED");
-            } else {
-                log.warn("Order is in state {}, ignoring ReservedEvent siteId={} instanceId={} orderId={} eventId={}",
-                        currentStatus, siteId, instanceId, order.orderId(), event.eventId());
-                store.updateProcessedOutcome(event.eventId(), "TERMINAL_STATE_IGNORED");
-                return new StatusSyncResult(event.eventId(), event.orderId(), "TERMINAL_STATE_IGNORED");
+            if ("RESERVED".equals(current)) {
+                return alreadyApplied(event.eventId(), order.orderId(), event.eventType().name(), current, context);
             }
+            return ignored(event.eventId(), order.orderId(), event.eventType().name(),
+                    current, TERMINAL_STATE_IGNORED, context);
         });
     }
 
     public StatusSyncResult processFailed(FailedEvent event) {
-        return readCommittedTx.execute(status -> {
-            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-            boolean inserted = store.tryInsertProcessedEvent(event.eventId(), event.orderId(), event.eventType().name(), now);
-            if (!inserted) {
-                log.info("Duplicate event ignored siteId={} instanceId={} eventId={} orderId={} eventType={}",
-                        siteId, instanceId, event.eventId(), event.orderId(), event.eventType());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SKIPPED_DUPLICATE");
-            }
+        return processFailed(event, StatusEventContext.direct());
+    }
 
-            Optional<OrderStatusStore.OrderRecord> orderOpt = store.lockOrderForUpdate(event.orderId());
-            if (orderOpt.isEmpty()) {
-                log.error("Order not found for status event siteId={} instanceId={} orderId={} eventId={} eventType={}",
-                        siteId, instanceId, event.orderId(), event.eventId(), event.eventType());
-                store.updateProcessedOutcome(event.eventId(), "ORDER_NOT_FOUND");
-                return new StatusSyncResult(event.eventId(), event.orderId(), "ORDER_NOT_FOUND");
+    public StatusSyncResult processFailed(FailedEvent event, StatusEventContext context) {
+        StatusEventValidator.validateFailed(event);
+        String failureReason = event.payload().reasonCode().name() + ": " + event.payload().reasonMessage();
+        return inTransaction(event.eventId(), event.orderId(), event.eventType().name(), context, (order, now) -> {
+            String current = order.status();
+            if ("PENDING_INVENTORY".equals(current)) {
+                return transitioned(event.eventId(), order.orderId(), event.eventType().name(),
+                        current, "FAILED", failureReason, now, context);
             }
-
-            OrderStatusStore.OrderRecord order = orderOpt.get();
-            String currentStatus = order.status();
-            String failureReason = event.payload().reasonCode().name() + ": " + event.payload().reasonMessage();
-
-            if ("PENDING_INVENTORY".equals(currentStatus)) {
-                store.updateOrderStatus(order.orderId(), "FAILED", failureReason, now);
-                store.updateProcessedOutcome(event.eventId(), "SUCCESS");
-                log.info("Order status transitioned to FAILED siteId={} instanceId={} orderId={} eventId={} reason={}",
-                        siteId, instanceId, order.orderId(), event.eventId(), failureReason);
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SUCCESS");
-            } else if ("FAILED".equals(currentStatus)) {
-                store.updateProcessedOutcome(event.eventId(), "SUCCESS");
-                log.info("Order status already FAILED siteId={} instanceId={} orderId={} eventId={}",
-                        siteId, instanceId, order.orderId(), event.eventId());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SUCCESS");
-            } else {
-                log.warn("Order is in state {}, ignoring FailedEvent siteId={} instanceId={} orderId={} eventId={}",
-                        currentStatus, siteId, instanceId, order.orderId(), event.eventId());
-                store.updateProcessedOutcome(event.eventId(), "TERMINAL_STATE_IGNORED");
-                return new StatusSyncResult(event.eventId(), event.orderId(), "TERMINAL_STATE_IGNORED");
+            if ("FAILED".equals(current)) {
+                return alreadyApplied(event.eventId(), order.orderId(), event.eventType().name(), current, context);
             }
+            String outcome = "RESERVED".equals(current) ? ILLEGAL_TRANSITION_IGNORED : TERMINAL_STATE_IGNORED;
+            return ignored(event.eventId(), order.orderId(), event.eventType().name(), current, outcome, context);
         });
     }
 
     public StatusSyncResult processDone(DoneEvent event) {
-        return readCommittedTx.execute(status -> {
-            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-            boolean inserted = store.tryInsertProcessedEvent(event.eventId(), event.orderId(), event.eventType().name(), now);
-            if (!inserted) {
-                log.info("Duplicate event ignored siteId={} instanceId={} eventId={} orderId={} eventType={}",
-                        siteId, instanceId, event.eventId(), event.orderId(), event.eventType());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SKIPPED_DUPLICATE");
-            }
+        return processDone(event, StatusEventContext.direct());
+    }
 
-            Optional<OrderStatusStore.OrderRecord> orderOpt = store.lockOrderForUpdate(event.orderId());
-            if (orderOpt.isEmpty()) {
-                log.error("Order not found for status event siteId={} instanceId={} orderId={} eventId={} eventType={}",
-                        siteId, instanceId, event.orderId(), event.eventId(), event.eventType());
-                store.updateProcessedOutcome(event.eventId(), "ORDER_NOT_FOUND");
-                return new StatusSyncResult(event.eventId(), event.orderId(), "ORDER_NOT_FOUND");
+    public StatusSyncResult processDone(DoneEvent event, StatusEventContext context) {
+        StatusEventValidator.validateDone(event);
+        return inTransaction(event.eventId(), event.orderId(), event.eventType().name(), context, (order, now) -> {
+            String current = order.status();
+            if ("RESERVED".equals(current) || "PENDING_INVENTORY".equals(current)) {
+                return transitioned(event.eventId(), order.orderId(), event.eventType().name(),
+                        current, "DONE", null, now, context);
             }
-
-            OrderStatusStore.OrderRecord order = orderOpt.get();
-            String currentStatus = order.status();
-
-            if ("RESERVED".equals(currentStatus)) {
-                store.updateOrderStatus(order.orderId(), "DONE", null, now);
-                store.updateProcessedOutcome(event.eventId(), "SUCCESS");
-                log.info("Order status transitioned to DONE siteId={} instanceId={} orderId={} eventId={}",
-                        siteId, instanceId, order.orderId(), event.eventId());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SUCCESS");
-            } else if ("PENDING_INVENTORY".equals(currentStatus)) {
-                store.updateOrderStatus(order.orderId(), "DONE", null, now);
-                store.updateProcessedOutcome(event.eventId(), "SUCCESS");
-                log.info("Out-of-order Done arrived before Reserved for orderId={}, converged to DONE siteId={} instanceId={} eventId={}",
-                        order.orderId(), siteId, instanceId, event.eventId());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SUCCESS");
-            } else if ("DONE".equals(currentStatus)) {
-                store.updateProcessedOutcome(event.eventId(), "SUCCESS");
-                log.info("Order status already DONE siteId={} instanceId={} orderId={} eventId={}",
-                        siteId, instanceId, order.orderId(), event.eventId());
-                return new StatusSyncResult(event.eventId(), event.orderId(), "SUCCESS");
-            } else {
-                log.warn("Order is in state {}, ignoring DoneEvent siteId={} instanceId={} orderId={} eventId={}",
-                        currentStatus, siteId, instanceId, order.orderId(), event.eventId());
-                store.updateProcessedOutcome(event.eventId(), "TERMINAL_STATE_IGNORED");
-                return new StatusSyncResult(event.eventId(), event.orderId(), "TERMINAL_STATE_IGNORED");
+            if ("DONE".equals(current)) {
+                return alreadyApplied(event.eventId(), order.orderId(), event.eventType().name(), current, context);
             }
+            return ignored(event.eventId(), order.orderId(), event.eventType().name(),
+                    current, TERMINAL_STATE_IGNORED, context);
         });
+    }
+
+    private StatusSyncResult inTransaction(
+            UUID eventId,
+            UUID orderId,
+            String eventType,
+            StatusEventContext context,
+            Transition transition
+    ) {
+        StatusSyncResult result = readCommittedTx.execute(status -> {
+            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+            if (!store.tryInsertProcessedEvent(eventId, orderId, eventType, now)) {
+                log.info("Duplicate status event ignored service=order-service siteId={} instanceId={} orderId={} eventId={} eventType={} partition={} offset={} outcome={}",
+                        siteId, instanceId, orderId, eventId, eventType, context.partition(), context.offset(), SKIPPED_DUPLICATE);
+                return new StatusSyncResult(eventId, orderId, SKIPPED_DUPLICATE);
+            }
+
+            Optional<OrderRecord> orderOpt = store.lockOrderForUpdate(orderId);
+            if (orderOpt.isEmpty()) {
+                log.error("Order not found for status event service=order-service siteId={} instanceId={} orderId={} eventId={} eventType={} partition={} offset={} outcome={}",
+                        siteId, instanceId, orderId, eventId, eventType, context.partition(), context.offset(), ORDER_NOT_FOUND);
+                store.updateProcessedOutcome(eventId, ORDER_NOT_FOUND);
+                return new StatusSyncResult(eventId, orderId, ORDER_NOT_FOUND);
+            }
+            return transition.apply(orderOpt.get(), now);
+        });
+        if (result == null) {
+            throw new IllegalStateException("Status sync transaction returned null for eventId=" + eventId);
+        }
+        return result;
+    }
+
+    private StatusSyncResult transitioned(
+            UUID eventId,
+            UUID orderId,
+            String eventType,
+            String from,
+            String to,
+            String failureReason,
+            OffsetDateTime now,
+            StatusEventContext context
+    ) {
+        store.updateOrderStatus(orderId, to, failureReason, now);
+        store.updateProcessedOutcome(eventId, SUCCESS);
+        log.info("Order status transitioned service=order-service siteId={} instanceId={} orderId={} eventId={} eventType={} from={} to={} partition={} offset={} outcome={}",
+                siteId, instanceId, orderId, eventId, eventType, from, to, context.partition(), context.offset(), SUCCESS);
+        return new StatusSyncResult(eventId, orderId, SUCCESS);
+    }
+
+    private StatusSyncResult alreadyApplied(
+            UUID eventId,
+            UUID orderId,
+            String eventType,
+            String currentStatus,
+            StatusEventContext context
+    ) {
+        store.updateProcessedOutcome(eventId, ALREADY_APPLIED);
+        log.info("Status event already applied service=order-service siteId={} instanceId={} orderId={} eventId={} eventType={} currentStatus={} partition={} offset={} outcome={}",
+                siteId, instanceId, orderId, eventId, eventType, currentStatus, context.partition(), context.offset(), ALREADY_APPLIED);
+        return new StatusSyncResult(eventId, orderId, ALREADY_APPLIED);
+    }
+
+    private StatusSyncResult ignored(
+            UUID eventId,
+            UUID orderId,
+            String eventType,
+            String currentStatus,
+            String outcome,
+            StatusEventContext context
+    ) {
+        store.updateProcessedOutcome(eventId, outcome);
+        log.warn("Status event ignored service=order-service siteId={} instanceId={} orderId={} eventId={} eventType={} currentStatus={} partition={} offset={} outcome={}",
+                siteId, instanceId, orderId, eventId, eventType, currentStatus, context.partition(), context.offset(), outcome);
+        return new StatusSyncResult(eventId, orderId, outcome);
+    }
+
+    @FunctionalInterface
+    private interface Transition {
+        StatusSyncResult apply(OrderRecord order, OffsetDateTime now);
     }
 }

@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import vn.edu.orders.contracts.events.DoneEvent;
+import vn.edu.orders.contracts.events.EventType;
 import vn.edu.orders.contracts.events.FailedEvent;
 import vn.edu.orders.contracts.events.FailureReasonCode;
 import vn.edu.orders.contracts.events.OrderItemLine;
@@ -23,6 +24,7 @@ import vn.edu.orders.contracts.events.ReservedEvent;
 import vn.edu.orders.contracts.events.SourceType;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "outbox.enabled=false",
@@ -66,6 +68,23 @@ class OrderStatusIntegrationTests {
     private String getFailureReason(UUID orderId) {
         return jdbc.queryForObject("SELECT failure_reason FROM b4_order_test.orders WHERE order_id = ?",
                 String.class, orderId);
+    }
+
+    private long version(UUID orderId) {
+        return jdbc.queryForObject("SELECT version FROM b4_order_test.orders WHERE order_id = ?",
+                Long.class, orderId);
+    }
+
+    private String outcome(UUID eventId) {
+        return jdbc.queryForObject(
+                "SELECT outcome FROM b4_order_test.processed_events WHERE event_id = ?",
+                String.class, eventId);
+    }
+
+    private long processedCount(UUID orderId) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM b4_order_test.processed_events WHERE order_id = ?",
+                Long.class, orderId);
     }
 
     @Test
@@ -144,8 +163,10 @@ class OrderStatusIntegrationTests {
         assertThat(first.outcome()).isEqualTo("SUCCESS");
 
         var second = syncService.processReserved(event2);
-        assertThat(second.outcome()).isEqualTo("SUCCESS");
+        assertThat(second.outcome()).isEqualTo("ALREADY_APPLIED");
         assertThat(getOrderStatus(orderId)).isEqualTo("RESERVED");
+        assertThat(outcome(event2.eventId())).isEqualTo("ALREADY_APPLIED");
+        assertThat(version(orderId)).isEqualTo(1L);
     }
 
     @Test
@@ -339,5 +360,111 @@ class OrderStatusIntegrationTests {
         assertThat(successCount.get()).isEqualTo(1);
         assertThat(duplicateCount.get()).isEqualTo(3);
         assertThat(getOrderStatus(orderId)).isEqualTo("RESERVED");
+    }
+
+    @Test
+    void failedEventDoesNotRevertReservedOrder() {
+        UUID orderId = UUID.randomUUID();
+        createOrder(orderId, UUID.randomUUID(), "RESERVED");
+
+        FailedEvent event = FailedEvent.v1(
+                UUID.randomUUID(),
+                orderId,
+                SourceType.POS,
+                "POS01",
+                Instant.now(),
+                FailureReasonCode.INSUFFICIENT_INGREDIENT,
+                "Hết gà xé phay"
+        );
+
+        var result = syncService.processFailed(event);
+        assertThat(result.outcome()).isEqualTo("ILLEGAL_TRANSITION_IGNORED");
+        assertThat(getOrderStatus(orderId)).isEqualTo("RESERVED");
+        assertThat(getFailureReason(orderId)).isNull();
+        assertThat(version(orderId)).isZero();
+    }
+
+    @Test
+    void doneDoesNotOverrideFailedAndFailedDoesNotOverrideDone() {
+        UUID failedOrderId = UUID.randomUUID();
+        createOrder(failedOrderId, UUID.randomUUID(), "FAILED");
+        DoneEvent lateDone = DoneEvent.v1(
+                UUID.randomUUID(),
+                failedOrderId,
+                SourceType.POS,
+                "POS01",
+                Instant.now(),
+                UUID.randomUUID(),
+                Instant.now()
+        );
+        assertThat(syncService.processDone(lateDone).outcome()).isEqualTo("TERMINAL_STATE_IGNORED");
+        assertThat(getOrderStatus(failedOrderId)).isEqualTo("FAILED");
+
+        FailedEvent secondFailed = FailedEvent.v1(
+                UUID.randomUUID(),
+                failedOrderId,
+                SourceType.POS,
+                "POS01",
+                Instant.now(),
+                FailureReasonCode.INSUFFICIENT_INGREDIENT,
+                "Vẫn hết nguyên liệu"
+        );
+        assertThat(syncService.processFailed(secondFailed).outcome()).isEqualTo("ALREADY_APPLIED");
+        assertThat(getOrderStatus(failedOrderId)).isEqualTo("FAILED");
+
+        UUID doneOrderId = UUID.randomUUID();
+        createOrder(doneOrderId, UUID.randomUUID(), "DONE");
+        FailedEvent lateFailed = FailedEvent.v1(
+                UUID.randomUUID(),
+                doneOrderId,
+                SourceType.POS,
+                "POS01",
+                Instant.now(),
+                FailureReasonCode.RECIPE_NOT_FOUND,
+                "Không có công thức"
+        );
+        assertThat(syncService.processFailed(lateFailed).outcome()).isEqualTo("TERMINAL_STATE_IGNORED");
+        assertThat(getOrderStatus(doneOrderId)).isEqualTo("DONE");
+        assertThat(getFailureReason(doneOrderId)).isNull();
+    }
+
+    @Test
+    void secondDoneEventIsAlreadyAppliedAndDoesNotChangeVersion() {
+        UUID orderId = UUID.randomUUID();
+        createOrder(orderId, UUID.randomUUID(), "RESERVED");
+        DoneEvent first = DoneEvent.v1(
+                UUID.randomUUID(), orderId, SourceType.POS, "POS01", Instant.now(), UUID.randomUUID(), Instant.now());
+        DoneEvent second = DoneEvent.v1(
+                UUID.randomUUID(), orderId, SourceType.POS, "POS01", Instant.now(), UUID.randomUUID(), Instant.now());
+
+        assertThat(syncService.processDone(first).outcome()).isEqualTo("SUCCESS");
+        assertThat(syncService.processDone(second).outcome()).isEqualTo("ALREADY_APPLIED");
+        assertThat(getOrderStatus(orderId)).isEqualTo("DONE");
+        assertThat(version(orderId)).isEqualTo(1L);
+        assertThat(outcome(second.eventId())).isEqualTo("ALREADY_APPLIED");
+    }
+
+    @Test
+    void invalidStatusEventsAreRejectedBeforeAnyWrite() {
+        UUID orderId = UUID.randomUUID();
+        createOrder(orderId, UUID.randomUUID(), "PENDING_INVENTORY");
+
+        DoneEvent doneWithoutPayload = new DoneEvent(
+                UUID.randomUUID(), 1, EventType.Done, orderId, SourceType.POS, "POS01", Instant.now(), null);
+        FailedEvent failedWithoutPayload = new FailedEvent(
+                UUID.randomUUID(), 1, EventType.Failed, orderId, SourceType.POS, "POS01", Instant.now(), null);
+        ReservedEvent reservedWithoutItems = ReservedEvent.v1(
+                UUID.randomUUID(), orderId, SourceType.POS, "POS01", Instant.now(), orderId, List.of());
+
+        assertThatThrownBy(() -> syncService.processDone(doneWithoutPayload))
+                .isInstanceOf(InvalidEventException.class);
+        assertThatThrownBy(() -> syncService.processFailed(failedWithoutPayload))
+                .isInstanceOf(InvalidEventException.class);
+        assertThatThrownBy(() -> syncService.processReserved(reservedWithoutItems))
+                .isInstanceOf(InvalidEventException.class);
+
+        assertThat(getOrderStatus(orderId)).isEqualTo("PENDING_INVENTORY");
+        assertThat(version(orderId)).isZero();
+        assertThat(processedCount(orderId)).isZero();
     }
 }
