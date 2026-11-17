@@ -13,13 +13,23 @@ import { PrimePanel } from "./PrimePanel";
 
 // ----------------------------------------------------------------------
 
+const isNavItemActive = (item, pathname) => {
+  if (item.path && isRouteActive(item.path, pathname)) {
+    return true;
+  }
+  if (item.childs) {
+    return item.childs.some((child) => isNavItemActive(child, pathname));
+  }
+  return false;
+};
+
 export function Sidebar() {
   const { pathname } = useLocation();
   const { name, lgAndDown } = useBreakpointsContext();
   const { isExpanded, close } = useSidebarContext();
 
   const initialSegment = useMemo(
-    () => navigation.find((item) => isRouteActive(item.path, pathname)),
+    () => navigation.find((item) => isNavItemActive(item, pathname)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -33,12 +43,12 @@ export function Sidebar() {
   }, [activeSegmentPath]);
 
   useDidUpdate(() => {
-    const activePath = navigation.find((item) =>
-      isRouteActive(item.path, pathname),
-    )?.path;
+    const activeItem = navigation.find((item) =>
+      isNavItemActive(item, pathname),
+    );
 
-    if (!isRouteActive(activeSegmentPath, pathname)) {
-      setActiveSegmentPath(activePath);
+    if (activeItem && activeItem.path !== activeSegmentPath) {
+      setActiveSegmentPath(activeItem.path);
     }
   }, [pathname]);
 

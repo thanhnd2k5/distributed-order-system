@@ -7,7 +7,7 @@ Mục tiêu là triển khai và chứng minh các cơ chế phân tán bằng n
 - [Tài liệu thiết kế chi tiết dự án](docs/PROJECT_SPEC.md)
 - [Hướng dẫn dựng base backend từ đầu](docs/BACKEND_BOOTSTRAP.md)
 - [Kịch bản demo và tiêu chí nghiệm thu](docs/DEMO_PLAN.md)
-- Frontend có sẵn: `react-starter-kit-zq/`, dùng React và JavaScript.
+- Frontend đã triển khai trên `react-starter-kit-zq/` (React + Vite + TanStack Query + Zustand, không auth): gồm `/dashboard`, `/pos/POS01`, `/pos/POS02`, `/online`, `/inventory`, `/kitchen`. Xem [cách chạy frontend](react-starter-kit-zq/README.md).
 - Backend đã chọn hướng Java và Spring Boot; PostgreSQL và Kafka kế thừa tài liệu dự án.
 - Base backend B0: `backend/` và `infra/compose.base.yaml`; xem [cách chạy local](backend/README.md).
 - Luồng B1 tạo/đọc đơn và ghi outbox đã có trong Order Service. Xem [contract và cách chia việc](docs/TEAM_START.md).

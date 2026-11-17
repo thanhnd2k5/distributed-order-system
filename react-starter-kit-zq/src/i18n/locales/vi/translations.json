@@ -1,5 +1,17 @@
 {
   "nav": {
+    "central": {
+      "root": "Trung tâm vận hành",
+      "dashboard": "Dashboard Tổng hợp",
+      "kitchen": "Bếp trung tâm",
+      "inventory": "Kho nguyên liệu"
+    },
+    "channels": {
+      "root": "Kênh nhận đơn",
+      "pos01": "Quầy POS01",
+      "pos02": "Quầy POS02",
+      "online": "Đặt hàng Online"
+    },
     "dashboards": {
       "dashboards": "Tổng quan",
       "home": "Trang chủ"

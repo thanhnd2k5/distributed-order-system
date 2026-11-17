@@ -9,7 +9,6 @@ import { useThemeContext } from "app/contexts/theme/context";
 
 import { Header } from "./Header";
 import { Menu } from "./Menu";
-import { Profile } from "./Profile";
 
 // ----------------------------------------------------------------------
 
@@ -41,11 +40,6 @@ export function Sidebar() {
       >
         <Header />
         <Menu />
-
-        {/* Bottom Profile Section */}
-        <div className="flex shrink-0 flex-col items-center py-4 border-t border-gray-150 dark:border-dark-600 transition-all duration-300">
-          <Profile isExpanded={isSidebarExpanded} />
-        </div>
       </div>
 
       {!lgAndDown && (

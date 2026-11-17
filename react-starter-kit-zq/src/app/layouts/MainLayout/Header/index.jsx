@@ -5,10 +5,8 @@ import clsx from "clsx";
 // Local Imports
 import SearchIcon from "assets/dualicons/search.svg?react";
 import { SidebarToggleBtn } from "components/shared/SidebarToggleBtn";
-import { Button } from "components/ui";
-import { Notifications } from "components/template/Notifications";
+import { Badge, Button } from "components/ui";
 import { RightSidebar } from "components/template/RightSidebar";
-import { LanguageSelector } from "components/template/LaguageSelector";
 import { Search } from "components/template/Search";
 import { useThemeContext } from "app/contexts/theme/context";
 
@@ -58,7 +56,7 @@ export function Header() {
                 <div className="flex items-center gap-2">
                   <MagnifyingGlassIcon className="size-4" />
                   <span className="text-gray-400 dark:text-dark-300">
-                    Search here...
+                    Tìm màn hình...
                   </span>
                 </div>
                 <SlashIcon />
@@ -75,9 +73,10 @@ export function Header() {
             </>
           )}
         />
-        <Notifications />
+        <Badge variant="soft" color="info" className="hidden sm:inline-flex">
+          Chế độ Demo • Không Auth
+        </Badge>
         <RightSidebar />
-        <LanguageSelector />
       </div>
     </header>
   );

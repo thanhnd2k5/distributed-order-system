@@ -1,7 +1,6 @@
-import {dashboards} from "./dashboards";
+import { central } from "./central";
+import { channels } from "./channels";
 
-export const navigation = [
-  dashboards
-]
+export const navigation = [central, channels];
 
-export {baseNavigation} from './baseNavigation'
+export { baseNavigation } from "./baseNavigation";

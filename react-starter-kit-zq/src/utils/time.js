@@ -85,3 +85,17 @@ export function formatEta(etaSeconds) {
 
   return `Còn khoảng ${minutes}m ${seconds}s`;
 }
+
+export function formatDateTime(value) {
+  if (!value) return "—";
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) return "—";
+  return parsed.format("HH:mm:ss DD/MM/YYYY");
+}
+
+export function formatTimeOnly(value) {
+  if (!value) return "—";
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) return "—";
+  return parsed.format("HH:mm:ss");
+}
