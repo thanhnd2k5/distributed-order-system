@@ -46,9 +46,16 @@ function Invoke-Psql {
 }
 
 Write-Output '1. Ensuring Docker replication network (order-replication-net)...'
-& docker network inspect order-replication-net *> $null
-if ($LASTEXITCODE -ne 0) {
-    & docker network create order-replication-net | Out-Host
+$prev = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    & docker network inspect order-replication-net 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        & docker network create order-replication-net | Out-Host
+    }
+}
+finally {
+    $ErrorActionPreference = $prev
 }
 
 Write-Output '2. Ensuring all publisher DBs and central-db are up and healthy...'
@@ -78,29 +85,42 @@ foreach ($pub in $publishers) {
         Invoke-Psql $pub.Compose $pub.Service 'order_app' $pub.Db "SELECT pg_reload_conf();" | Out-Null
     }
 
-    $tableCheck = (& docker compose -f $pub.Compose exec -T $pub.Service psql -U order_app -d $pub.Db -tAc "SELECT to_regclass('$($pub.Schema).orders') IS NOT NULL AND to_regclass('$($pub.Schema).order_items') IS NOT NULL;").Trim()
+    $tableCheck = (& docker compose -f $pub.Compose exec -T $pub.Service psql -U order_app -d $pub.Db -tAc "SELECT to_regclass('$($pub.Schema).orders') IS NOT NULL AND to_regclass('$($pub.Schema).order_items') IS NOT NULL AND to_regclass('$($pub.Schema).replication_heartbeat') IS NOT NULL;").Trim()
     if ($tableCheck -ne 't') {
-        throw "Tables in $($pub.Service) schema '$($pub.Schema)' are not migrated yet. Start order-service for $($pub.Name) once first."
+        throw "Tables in $($pub.Service) schema '$($pub.Schema)' (orders, order_items, replication_heartbeat) are not migrated yet. Start order-service for $($pub.Name) once first."
     }
 
     $pubSql = @"
 DO `$`$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = '$($pub.Pub)') THEN
-        CREATE PUBLICATION $($pub.Pub) FOR TABLE $($pub.Schema).orders, $($pub.Schema).order_items;
+        CREATE PUBLICATION $($pub.Pub) FOR TABLE $($pub.Schema).orders, $($pub.Schema).order_items, $($pub.Schema).replication_heartbeat;
+    ELSE
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_publication_tables
+            WHERE pubname = '$($pub.Pub)' AND schemaname = '$($pub.Schema)' AND tablename = 'replication_heartbeat'
+        ) THEN
+            ALTER PUBLICATION $($pub.Pub) ADD TABLE $($pub.Schema).replication_heartbeat;
+        END IF;
     END IF;
 END
 `$`$;
 "@
     Invoke-Psql $pub.Compose $pub.Service 'order_app' $pub.Db $pubSql | Out-Null
-    Write-Output "  [OK] $($pub.Name): wal_level=logical, pg_hba replication ready, publication $($pub.Pub) ready."
+    Write-Output "  [OK] $($pub.Name): wal_level=logical, pg_hba replication ready, publication $($pub.Pub) ready (orders, order_items, replication_heartbeat)."
 }
 
-Write-Output '4. Checking central-db schemas and creating subscriptions...'
-$centralCheck = (& docker compose -f $centralCompose exec -T central-db psql -U central_app -d central_orders_db -tAc "SELECT to_regclass('pos01.orders') IS NOT NULL AND to_regclass('pos02.orders') IS NOT NULL AND to_regclass('online.orders') IS NOT NULL AND to_regclass('reporting.all_orders') IS NOT NULL;").Trim()
+Write-Output '4. Checking central-db schemas, views, grants, and creating subscriptions...'
+$centralCheck = (& docker compose -f $centralCompose exec -T central-db psql -U central_app -d central_orders_db -tAc "SELECT to_regclass('pos01.orders') IS NOT NULL AND to_regclass('pos02.orders') IS NOT NULL AND to_regclass('online.orders') IS NOT NULL AND to_regclass('pos01.replication_heartbeat') IS NOT NULL AND to_regclass('pos02.replication_heartbeat') IS NOT NULL AND to_regclass('online.replication_heartbeat') IS NOT NULL AND to_regclass('reporting.all_orders') IS NOT NULL AND to_regclass('reporting.all_heartbeats') IS NOT NULL;").Trim()
 if ($centralCheck -ne 't') {
-    throw 'Central DB schemas/views are not migrated yet. Start order-query-service once first.'
+    throw 'Central DB schemas/views (including replication_heartbeat and reporting.all_heartbeats) are not migrated yet. Start order-query-service once first.'
 }
+
+$grantSql = @"
+GRANT USAGE ON SCHEMA pos01, pos02, online, reporting TO query_reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA pos01, pos02, online, reporting TO query_reader;
+"@
+Invoke-Psql $centralCompose 'central-db' 'central_app' 'central_orders_db' $grantSql | Out-Null
 
 foreach ($pub in $publishers) {
     $subExists = (& docker compose -f $centralCompose exec -T central-db psql -U central_app -d central_orders_db -tAc "SELECT count(*) FROM pg_subscription WHERE subname = '$($pub.Sub)';").Trim()
@@ -111,27 +131,28 @@ foreach ($pub in $publishers) {
         Write-Output "  [CREATED] Subscription $($pub.Sub) -> $($pub.Service)/$($pub.Pub)"
     } else {
         $enabled = (& docker compose -f $centralCompose exec -T central-db psql -U central_app -d central_orders_db -tAc "SELECT subenabled FROM pg_subscription WHERE subname = '$($pub.Sub)';").Trim()
-        if ($EnableExisting -and $enabled -ne 't') {
-            Invoke-Psql $centralCompose 'central-db' 'central_app' 'central_orders_db' "ALTER SUBSCRIPTION $($pub.Sub) ENABLE;" | Out-Null
-            Write-Output "  [EXISTS] Subscription $($pub.Sub) was disabled; enabled via -EnableExisting."
-        } elseif ($enabled -eq 't') {
-            Write-Output "  [EXISTS] Subscription $($pub.Sub) already enabled (left unchanged)."
+        if ($enabled -eq 't') {
+            Invoke-Psql $centralCompose 'central-db' 'central_app' 'central_orders_db' "ALTER SUBSCRIPTION $($pub.Sub) REFRESH PUBLICATION;" | Out-Null
+            Write-Output "  [EXISTS] Subscription $($pub.Sub) already enabled (refreshed publication)."
+        } elseif ($EnableExisting) {
+            Invoke-Psql $centralCompose 'central-db' 'central_app' 'central_orders_db' "ALTER SUBSCRIPTION $($pub.Sub) ENABLE; ALTER SUBSCRIPTION $($pub.Sub) REFRESH PUBLICATION;" | Out-Null
+            Write-Output "  [EXISTS] Subscription $($pub.Sub) was disabled; enabled and refreshed via -EnableExisting."
         } else {
             Write-Output "  [EXISTS] Subscription $($pub.Sub) is DISABLED (left unchanged; pass -EnableExisting to turn on)."
         }
     }
 }
 
-Write-Output '5. Waiting for initial sync of all 6 replicated tables...'
+Write-Output '5. Waiting for initial sync of all 9 replicated tables (orders, order_items, replication_heartbeat x 3 branches)...'
 $deadline = (Get-Date).AddSeconds(30)
 while ($true) {
     $readyCount = (& docker compose -f $centralCompose exec -T central-db psql -U central_app -d central_orders_db -tAc "SELECT count(*) FROM pg_subscription_rel WHERE srsubstate IN ('r', 's');").Trim()
-    if ([int]$readyCount -ge 6) {
+    if ([int]$readyCount -ge 9) {
         break
     }
     if ((Get-Date) -gt $deadline) {
         Invoke-Psql $centralCompose 'central-db' 'central_app' 'central_orders_db' "SELECT s.subname, r.srrelid::regclass, r.srsubstate FROM pg_subscription_rel r JOIN pg_subscription s ON s.oid = r.srsubid;"
-        throw "Timed out waiting for all 6 subscription relations to reach ready state (got $readyCount)."
+        throw "Timed out waiting for all 9 subscription relations to reach ready state (got $readyCount)."
     }
     Start-Sleep -Milliseconds 500
 }

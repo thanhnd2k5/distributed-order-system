@@ -1,0 +1,13 @@
+{
+  "eventId": "c1f1a001-1111-4444-8888-000000000004",
+  "eventType": "CancelRejected",
+  "schemaVersion": 1,
+  "orderId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+  "branchId": "POS01",
+  "occurredAt": "2026-11-21T09:16:05Z",
+  "causationId": "2e5e2e51-9a14-4d30-9f5c-010203040506",
+  "payload": {
+    "kitchenStatus": "COOKING",
+    "message": "Cannot cancel: the kitchen has started cooking"
+  }
+}

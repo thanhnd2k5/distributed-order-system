@@ -1,0 +1,13 @@
+{
+  "eventId": "c1f1a001-1111-4444-8888-000000000009",
+  "eventType": "Heartbeat",
+  "schemaVersion": 1,
+  "orderId": null,
+  "branchId": "INVENTORY",
+  "occurredAt": "2026-11-21T09:17:00Z",
+  "causationId": null,
+  "payload": {
+    "epoch": 1,
+    "seq": 3
+  }
+}

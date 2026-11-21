@@ -1,0 +1,15 @@
+{
+  "eventId": "c1f1a001-1111-4444-8888-000000000007",
+  "eventType": "DishStatusChanged",
+  "schemaVersion": 1,
+  "orderId": null,
+  "branchId": "INVENTORY",
+  "occurredAt": "2026-11-21T09:16:15Z",
+  "causationId": null,
+  "payload": {
+    "dishId": "COM_GA",
+    "status": "SOLD_OUT",
+    "epoch": 1,
+    "seq": 2
+  }
+}

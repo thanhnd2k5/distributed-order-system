@@ -22,7 +22,7 @@ import vn.edu.orders.kitchen.config.KitchenProperties;
 @ConditionalOnProperty(name = "outbox.enabled", havingValue = "true")
 public class OutboxPublisher {
     private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
-    private static final int BATCH_LIMIT = 10;
+    private static final int BATCH_LIMIT = 50;
 
     private final JdbcClient jdbc;
     private final TransactionTemplate transaction;
@@ -57,8 +57,8 @@ public class OutboxPublisher {
         var pending = jdbc.sql("""
                 SELECT event_id, event_type, topic, message_key, payload::text, attempt_count
                 FROM %s
-                WHERE sent_at IS NULL AND next_attempt_at <= now()
-                ORDER BY created_at, event_id
+                WHERE sent_at IS NULL AND next_attempt_at <= clock_timestamp()
+                ORDER BY seq_id ASC
                 LIMIT 1 FOR UPDATE SKIP LOCKED
                 """.formatted(outbox))
                 .query((rs, row) -> new PendingEvent(

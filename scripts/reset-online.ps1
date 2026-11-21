@@ -15,9 +15,16 @@ if ($busyPorts.Count -gt 0) {
     exit 1
 }
 
-& docker network inspect order-replication-net *> $null
-if ($LASTEXITCODE -ne 0) {
-    & docker network create order-replication-net | Out-Host
+$prev = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    & docker network inspect order-replication-net 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        & docker network create order-replication-net | Out-Host
+    }
+}
+finally {
+    $ErrorActionPreference = $prev
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -55,6 +62,24 @@ DELETE FROM outbox_events;
 DELETE FROM order_items;
 DELETE FROM orders;
 DELETE FROM processed_events;
+DO `$`$
+BEGIN
+    IF to_regclass('$Schema.replication_heartbeat') IS NOT NULL THEN DELETE FROM $Schema.replication_heartbeat; END IF;
+    IF to_regclass('$Schema.alerts') IS NOT NULL THEN DELETE FROM $Schema.alerts; END IF;
+    IF to_regclass('$Schema.menu_cache') IS NOT NULL THEN
+        DELETE FROM $Schema.menu_cache;
+        INSERT INTO $Schema.menu_cache (dish_id, dish_name, status, epoch, seq)
+        SELECT dish_id, name, CASE WHEN active THEN 'AVAILABLE' ELSE 'HIDDEN' END, 1, 0
+        FROM $Schema.menu_items
+        ON CONFLICT (dish_id) DO NOTHING;
+    END IF;
+    IF to_regclass('$Schema.menu_cache_meta') IS NOT NULL THEN
+        INSERT INTO $Schema.menu_cache_meta (id, epoch, last_heard_at)
+        VALUES (TRUE, 1, NULL)
+        ON CONFLICT (id) DO UPDATE SET epoch = 1, last_heard_at = NULL;
+    END IF;
+END
+`$`$;
 COMMIT;
 SELECT
     (SELECT count(*) FROM $Schema.orders) AS orders,

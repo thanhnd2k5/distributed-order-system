@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Central Order Query API
-  version: 1.0.0
+  version: 1.5.0
   description: Read-only reporting endpoints over the Central Order Replica (PostgreSQL logical replication).
 servers:
   - url: http://localhost:8080
@@ -22,7 +22,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [PENDING_INVENTORY, RESERVED, FAILED, DONE]
+            enum: [PENDING_INVENTORY, RESERVED, DONE, CANCELLED, FAILED]
         - name: limit
           in: query
           required: false
@@ -65,10 +65,10 @@ paths:
   /api/reporting/summary:
     get:
       operationId: getReportingSummary
-      summary: Order counts grouped by site and status plus PostgreSQL subscription status
+      summary: Per-branch dataAsOf heartbeats, order counts by branch status and close reason, plus PostgreSQL subscription status
       responses:
         '200':
-          description: Summary counts and subscription status
+          description: Summary counts, reason breakdowns, per-branch dataAsOf, and subscription status
           content:
             application/json:
               schema:
@@ -88,13 +88,18 @@ components:
           description: Wall-clock time of this API fetch; not a replication sync timestamp.
     ReplicatedOrderSummary:
       type: object
-      required: [orderId, sourceSiteId, sourceType, status, failureReason, version, createdAt, updatedAt]
+      required: [orderId, sourceSiteId, sourceType, status, statusRank, cancelFlag, version, createdAt, updatedAt]
       properties:
         orderId: { type: string, format: uuid }
         sourceSiteId: { type: string, enum: [POS01, POS02, ONLINE] }
         sourceType: { type: string, enum: [POS, ONLINE] }
-        status: { type: string, enum: [PENDING_INVENTORY, RESERVED, FAILED, DONE] }
+        status: { type: string, enum: [PENDING_INVENTORY, RESERVED, DONE, CANCELLED, FAILED] }
+        statusRank: { type: integer, enum: [0, 1, 2] }
         failureReason: { type: string, nullable: true }
+        closeReason: { type: string, nullable: true }
+        cancelFlag: { type: string, enum: [NONE, REQUESTED, KITCHEN_WILL_NOT_COOK] }
+        cancelRequestedAt: { type: string, format: date-time, nullable: true }
+        cancelMessage: { type: string, nullable: true }
         version: { type: integer, format: int64 }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -106,6 +111,28 @@ components:
         dishId: { type: string }
         dishName: { type: string }
         quantity: { type: integer, minimum: 1 }
+    BranchSummary:
+      type: object
+      required: [branchId, totalOrders, byStatus, cancelledByReason, failedByReason]
+      properties:
+        branchId: { type: string, enum: [POS01, POS02, ONLINE] }
+        dataAsOf: { type: string, format: date-time, nullable: true }
+        totalOrders: { type: integer, format: int64, minimum: 0 }
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        cancelledByReason:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        failedByReason:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
     SubscriptionStatus:
       type: object
       required: [subscriptionName, enabled]
@@ -143,7 +170,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/ReplicaEnvelope'
         - type: object
-          required: [totalOrders, bySite, byStatus, subscriptions]
+          required: [totalOrders, bySite, byStatus, byCancelledReason, byFailedReason, branches, subscriptions]
           properties:
             totalOrders: { type: integer, format: int64, minimum: 0 }
             bySite:
@@ -151,13 +178,25 @@ components:
               additionalProperties:
                 type: integer
                 format: int64
-              example: { POS01: 1, POS02: 1, ONLINE: 1 }
             byStatus:
               type: object
               additionalProperties:
                 type: integer
                 format: int64
-              example: { PENDING_INVENTORY: 0, RESERVED: 1, FAILED: 0, DONE: 2 }
+            byCancelledReason:
+              type: object
+              additionalProperties:
+                type: integer
+                format: int64
+            byFailedReason:
+              type: object
+              additionalProperties:
+                type: integer
+                format: int64
+            branches:
+              type: array
+              items:
+                $ref: '#/components/schemas/BranchSummary'
             subscriptions:
               type: array
               items:

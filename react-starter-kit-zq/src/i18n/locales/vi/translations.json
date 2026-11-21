@@ -1,5 +1,13 @@
 {
   "nav": {
+    "operations": {
+      "root": "Vận hành đơn hàng",
+      "branch": "Chi nhánh (POS / Online)",
+      "kitchen": "Bếp (Kitchen)",
+      "inventory": "Kho nguyên liệu",
+      "reporting": "Báo cáo quản lý",
+      "demo": "Demo song song"
+    },
     "dashboards": {
       "dashboards": "Tổng quan",
       "home": "Trang chủ"

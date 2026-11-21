@@ -13,13 +13,6 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5435/inventory_db}
     username: ${DB_USERNAME:inventory_app}
     password: ${DB_PASSWORD:inventory_demo}
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        default_schema: ${DB_SCHEMA:inventory}
   flyway:
     enabled: true
     create-schemas: true
@@ -35,6 +28,7 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
         "[max.poll.interval.ms]": 300000
+        "[metadata.max.age.ms]": 5000
     producer:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -45,11 +39,18 @@ spring:
         "[request.timeout.ms]": 2000
         "[delivery.timeout.ms]": 5000
     listener:
-      ack-mode: record
+      ack-mode: manual_immediate
       concurrency: 1
       auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
 inventory:
   instance-id: ${INSTANCE_ID:inventory-1}
+  order-expiry: ${INVENTORY_ORDER_EXPIRY:PT4H}
+  future-tolerance: ${INVENTORY_FUTURE_TOLERANCE:PT5M}
+  heartbeat-interval-ms: ${INVENTORY_HEARTBEAT_INTERVAL_MS:60000}
+  heartbeat-enabled: ${HEARTBEAT_ENABLED:${OUTBOX_ENABLED:false}}
+  slow-consumer-threshold: ${INVENTORY_SLOW_CONSUMER_THRESHOLD:PT5M}
+  max-poison-attempts: ${INVENTORY_MAX_POISON_ATTEMPTS:5}
+  poison-backoff-ms: ${INVENTORY_POISON_BACKOFF_MS:50}
 outbox:
   enabled: ${OUTBOX_ENABLED:false}
 demo:

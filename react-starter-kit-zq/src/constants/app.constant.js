@@ -1,5 +1,5 @@
-export const APP_NAME = "Tên dự án";
-export const APP_KEY = "ten-du-an";
+export const APP_NAME = "Quản lý Đơn hàng Phân tán";
+export const APP_KEY = "order-lifecycle-demo";
 
 // Redirect Paths
 export const REDIRECT_URL_KEY = "redirect";

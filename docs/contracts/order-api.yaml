@@ -1,40 +1,32 @@
 openapi: 3.0.3
 info:
-  title: POS Order API
-  version: 1.0.0
+  title: POS / Online Order API
+  version: 1.5.0
+  description: Branch order service API (POS01:8081, POS02:8082, ONLINE:8083) following v1.5 business specification.
 servers:
   - url: http://localhost:8081
 paths:
   /api/menu:
     get:
       operationId: listMenu
-      summary: List active dishes by dish ID
+      summary: Read cached dish statuses with staleness and epoch metadata
       responses:
         '200':
-          description: Active dishes
+          description: Cached non-hidden dishes with staleness and Kafka status
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/MenuItem'
-              example:
-                - { dishId: CHAO_GA, name: Cháo gà }
-                - { dishId: COM_GA, name: Cơm gà }
+                $ref: '#/components/schemas/MenuResponse'
   /api/orders:
     post:
       operationId: createOrder
-      summary: Commit an order and its outbox event
+      summary: Commit an order (PENDING_INVENTORY, rank 0) and its CREATE_ORDER outbox event
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateOrder'
-            example:
-              clientRequestId: db50282e-918a-4894-b6f1-d92ca1cb58c7
-              items:
-                - { dishId: COM_GA, quantity: 2 }
       responses:
         '201':
           description: New order committed
@@ -46,7 +38,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrderSummary'
         '200':
-          description: Same request ID and items, existing order returned
+          description: Same clientRequestId and items, existing order returned
           headers:
             Location:
               $ref: '#/components/headers/OrderLocation'
@@ -55,14 +47,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrderSummary'
         '400':
-          description: Invalid request, duplicate dish ID, or unknown or inactive dish
+          description: Invalid request, duplicate dish ID, or unknown dish (ProblemDetail)
         '409':
-          description: Request ID already used with different items
-        '500':
-          description: The operation failed
+          description: clientRequestId already used with different items (ProblemDetail)
     get:
       operationId: listOrders
-      summary: List up to 100 recent orders at this site, newest first
+      summary: List recent orders at this branch, newest first
       responses:
         '200':
           description: Recent orders
@@ -75,7 +65,7 @@ paths:
   /api/orders/{orderId}:
     get:
       operationId: getOrder
-      summary: Read local order status and item snapshots
+      summary: Read local order status, cancel flag, delivery state, and item snapshots
       parameters:
         - name: orderId
           in: path
@@ -91,50 +81,125 @@ paths:
         '400':
           description: Invalid order ID
         '404':
-          description: Order not found at this site
+          description: Order not found at this branch
+  /api/orders/{orderId}/cancel:
+    post:
+      operationId: cancelOrder
+      summary: Cancel locally if CREATE_ORDER not attempted yet (200), or queue CANCEL_REQUEST to Kitchen (202)
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelOrderRequest'
+      responses:
+        '200':
+          description: Local cancel succeeded (order closed as CANCELLED, rank 2)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderSummary'
+        '202':
+          description: Cancel request queued to Kitchen or already requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderSummary'
+        '400':
+          description: Missing or invalid reasonCode (ProblemDetail)
+        '404':
+          description: Order not found at this branch (ProblemDetail)
+        '409':
+          description: Order already in terminal status (statusRank = 2) (ProblemDetail with currentStatus)
+  /api/monitor:
+    get:
+      operationId: getBranchMonitor
+      summary: Flow D branch monitoring (Kafka connection status, pending outbox count, long-waiting/expiring/cancel alerts)
+      responses:
+        '200':
+          description: Branch monitor snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchMonitorResponse'
 components:
   headers:
     OrderLocation:
       description: Relative path of the order details
       schema: { type: string, example: /api/orders/d967e06a-090d-4abc-9fb2-c5ec54306e08 }
   schemas:
-    MenuItem:
+    MenuDish:
       type: object
-      required: [dishId, name]
+      required: [dishId, name, status, epoch, seq]
       properties:
         dishId: { type: string }
         name: { type: string }
+        status: { type: string, enum: [AVAILABLE, SOLD_OUT] }
+        epoch: { type: integer }
+        seq: { type: integer, format: int64 }
+    MenuResponse:
+      type: object
+      required: [stale, kafkaConnected, epoch, dishes]
+      properties:
+        stale: { type: boolean }
+        kafkaConnected: { type: boolean }
+        epoch: { type: integer }
+        lastHeardAt: { type: string, format: date-time, nullable: true }
+        dishes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuDish'
     CreateOrder:
       type: object
       required: [clientRequestId, items]
       properties:
-        clientRequestId:
-          type: string
-          format: uuid
-          description: Generate once per order submission and reuse when retrying it.
+        clientRequestId: { type: string, format: uuid }
         items:
           type: array
           minItems: 1
           maxItems: 100
-          description: Each dish ID may appear once. Item order does not affect retries.
           items:
             type: object
             required: [dishId, quantity]
             properties:
               dishId: { type: string, minLength: 1, maxLength: 50 }
               quantity: { type: integer, format: int32, minimum: 1 }
+    CancelOrderRequest:
+      type: object
+      required: [reasonCode]
+      properties:
+        reasonCode:
+          type: string
+          enum: [CUSTOMER_CHANGED_MIND, CUSTOMER_WAITED_TOO_LONG, WRONG_ORDER_ENTERED]
     OrderSummary:
       type: object
-      required: [orderId, sourceSiteId, status, failureReason, createdAt]
+      required: [orderId, sourceSiteId, status, statusRank, cancelFlag, deliveryStatus, createdAt, updatedAt]
       properties:
         orderId: { type: string, format: uuid }
         sourceSiteId: { type: string, example: POS01 }
         status:
           type: string
-          enum: [PENDING_INVENTORY, RESERVED, FAILED, DONE]
-          description: B1 creates orders in PENDING_INVENTORY. Later consumers update the status.
+          enum: [PENDING_INVENTORY, RESERVED, DONE, CANCELLED, FAILED]
+        statusRank:
+          type: integer
+          enum: [0, 1, 2]
         failureReason: { type: string, nullable: true }
+        closeReason: { type: string, nullable: true }
+        cancelFlag:
+          type: string
+          enum: [NONE, REQUESTED, KITCHEN_WILL_NOT_COOK]
+        cancelRequestedAt: { type: string, format: date-time, nullable: true }
+        cancelMessage: { type: string, nullable: true }
+        deliveryStatus:
+          type: string
+          enum: [NOT_SENT, SENDING, CANCEL_NOT_SENT, SENT]
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     OrderDetails:
       type: object
       required: [order, items]
@@ -151,3 +216,44 @@ components:
               dishId: { type: string }
               dishName: { type: string }
               quantity: { type: integer, minimum: 1 }
+    BranchMonitorResponse:
+      type: object
+      required: [branchId, kafkaConnected, pendingOutboxCount, pendingInventoryAlerts, expiringUnsentAlerts, activeCancelRequests, alerts]
+      properties:
+        branchId: { type: string }
+        kafkaConnected: { type: boolean }
+        lastProbeAt: { type: string, format: date-time, nullable: true }
+        lastProbeError: { type: string, nullable: true }
+        pendingOutboxCount: { type: integer, format: int64 }
+        pendingInventoryAlerts:
+          type: array
+          items:
+            type: object
+            properties:
+              orderId: { type: string, format: uuid }
+              createdAt: { type: string, format: date-time }
+              waitingSeconds: { type: integer, format: int64 }
+        expiringUnsentAlerts:
+          type: array
+          items:
+            type: object
+            properties:
+              orderId: { type: string, format: uuid }
+              kind: { type: string }
+              createdAt: { type: string, format: date-time }
+              expiresAt: { type: string, format: date-time }
+              remainingSeconds: { type: integer, format: int64 }
+        activeCancelRequests:
+          type: array
+          items:
+            type: object
+            properties:
+              orderId: { type: string, format: uuid }
+              status: { type: string }
+              cancelFlag: { type: string }
+              cancelRequestedAt: { type: string, format: date-time }
+              waitedSeconds: { type: integer, format: int64 }
+        alerts:
+          type: array
+          items:
+            type: object

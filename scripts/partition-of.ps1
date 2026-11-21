@@ -4,7 +4,7 @@ param(
     [string]$Key,
 
     [ValidateRange(1, 1000)]
-    [int]$Partitions = 3
+    [int]$Partitions = 2
 )
 
 Set-StrictMode -Version Latest

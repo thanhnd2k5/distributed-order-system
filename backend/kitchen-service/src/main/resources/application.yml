@@ -35,6 +35,7 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
         "[max.poll.interval.ms]": 300000
+        "[metadata.max.age.ms]": 5000
     producer:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -45,11 +46,13 @@ spring:
         "[request.timeout.ms]": 2000
         "[delivery.timeout.ms]": 5000
     listener:
-      ack-mode: record
+      ack-mode: manual-immediate
       concurrency: 1
       auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
 kitchen:
-  instance-id: ${INSTANCE_ID:kitchen-1}
+  instance-id: ${KITCHEN_INSTANCE_ID:${INSTANCE_ID:kitchen-1}}
+  slow-consumer-threshold-seconds: ${SLOW_CONSUMER_THRESHOLD_SECONDS:300}
+  monitor-admin-timeout-ms: ${MONITOR_ADMIN_TIMEOUT_MS:2000}
 outbox:
   enabled: ${OUTBOX_ENABLED:false}
 management:

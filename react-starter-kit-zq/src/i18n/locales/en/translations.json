@@ -1,5 +1,13 @@
 {
   "nav": {
+    "operations": {
+      "root": "Order Operations",
+      "branch": "Branch (POS / Online)",
+      "kitchen": "Kitchen",
+      "inventory": "Inventory",
+      "reporting": "Management Report",
+      "demo": "Side-by-Side Demo"
+    },
     "dashboards": {
       "dashboards": "Overview",
       "home": "Home"

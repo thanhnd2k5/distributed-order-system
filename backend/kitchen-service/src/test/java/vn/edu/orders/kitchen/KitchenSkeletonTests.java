@@ -20,10 +20,11 @@ import static org.assertj.core.api.Assertions.assertThat;
         "outbox.enabled=false",
         "spring.kafka.listener.auto-startup=false",
         "spring.kafka.bootstrap-servers=localhost:19999",
-        "spring.jpa.properties.hibernate.default_schema=b4_kitchen_skeleton_test",
-        "spring.flyway.default-schema=b4_kitchen_skeleton_test",
-        "spring.flyway.schemas=b4_kitchen_skeleton_test",
-        "kitchen.instance-id=kitchen-skeleton-test"
+        "spring.jpa.properties.hibernate.default_schema=v15_kitchen_skeleton_test",
+        "spring.flyway.default-schema=v15_kitchen_skeleton_test",
+        "spring.flyway.schemas=v15_kitchen_skeleton_test",
+        "kitchen.instance-id=kitchen-skeleton-test",
+        "kitchen.monitor-admin-timeout-ms=300"
 })
 class KitchenSkeletonTests {
     @Value("${local.server.port}")
@@ -40,9 +41,9 @@ class KitchenSkeletonTests {
     @Test
     void migrationsAndHealthWorkWithoutKafka() throws Exception {
         assertThat(jdbc.queryForList("""
-                SELECT version FROM b4_kitchen_skeleton_test.flyway_schema_history
+                SELECT version FROM v15_kitchen_skeleton_test.flyway_schema_history
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
-                """, String.class)).contains("1");
+                """, String.class)).containsExactly("1", "3");
 
         var health = get("/actuator/health");
         assertThat(health.statusCode()).isEqualTo(200);
@@ -50,27 +51,48 @@ class KitchenSkeletonTests {
     }
 
     @Test
-    void emptyTicketsListAndStatusFiltering() throws Exception {
+    void emptyTicketsAlertsAndMonitorWorkGracefully() throws Exception {
         var all = get("/api/kitchen/tickets");
         assertThat(all.statusCode()).isEqualTo(200);
         assertThat(JsonPath.<List<?>>read(all.body(), "$")).isEmpty();
 
-        var waiting = get("/api/kitchen/tickets?status=WAITING");
-        assertThat(waiting.statusCode()).isEqualTo(200);
-        assertThat(JsonPath.<List<?>>read(waiting.body(), "$")).isEmpty();
+        var queued = get("/api/kitchen/tickets?status=QUEUED");
+        assertThat(queued.statusCode()).isEqualTo(200);
+        assertThat(JsonPath.<List<?>>read(queued.body(), "$")).isEmpty();
 
-        var done = get("/api/kitchen/tickets?status=done");
-        assertThat(done.statusCode()).isEqualTo(200);
-        assertThat(JsonPath.<List<?>>read(done.body(), "$")).isEmpty();
+        var cooking = get("/api/kitchen/tickets?status=cooking");
+        assertThat(cooking.statusCode()).isEqualTo(200);
+        assertThat(JsonPath.<List<?>>read(cooking.body(), "$")).isEmpty();
 
         var invalid = get("/api/kitchen/tickets?status=UNKNOWN");
         assertThat(invalid.statusCode()).isEqualTo(400);
+
+        var notExistsFilter = get("/api/kitchen/tickets?status=NOT_EXISTS");
+        assertThat(notExistsFilter.statusCode()).isEqualTo(400);
+
+        var alerts = get("/api/kitchen/alerts");
+        assertThat(alerts.statusCode()).isEqualTo(200);
+        assertThat(JsonPath.<List<?>>read(alerts.body(), "$")).isEmpty();
+
+        var badAlertKind = get("/api/kitchen/alerts?kind=BOGUS");
+        assertThat(badAlertKind.statusCode()).isEqualTo(400);
+
+        var monitor = get("/api/kitchen/monitor");
+        assertThat(monitor.statusCode()).isEqualTo(200);
+        assertThat(JsonPath.<String>read(monitor.body(), "$.instanceId")).isEqualTo("kitchen-skeleton-test");
+        assertThat(JsonPath.<Boolean>read(monitor.body(), "$.kafkaConnected")).isFalse();
+        assertThat(JsonPath.<Boolean>read(monitor.body(), "$.anySlowConsumerWarning")).isFalse();
     }
 
     @Test
-    void missingTicketReturns404AndInvalidIdReturns400AndCorsAllowsGetAndPost() throws Exception {
-        assertThat(get("/api/kitchen/tickets/" + UUID.randomUUID()).statusCode()).isEqualTo(404);
+    void missingTicketReturns404InvalidIdReturns400AndCorsAllowsGetAndPost() throws Exception {
+        UUID missingId = UUID.randomUUID();
+        assertThat(get("/api/kitchen/tickets/" + missingId).statusCode()).isEqualTo(404);
         assertThat(get("/api/kitchen/tickets/not-a-uuid").statusCode()).isEqualTo(400);
+        assertThat(postJson("/api/kitchen/tickets/" + missingId + "/start", null).statusCode()).isEqualTo(404);
+        assertThat(postJson("/api/kitchen/tickets/" + missingId + "/complete", null).statusCode()).isEqualTo(404);
+        assertThat(postJson("/api/kitchen/tickets/" + missingId + "/reject",
+                "{\"reasonCode\":\"EQUIPMENT_FAILURE\",\"spoiledIngredients\":[]}").statusCode()).isEqualTo(404);
 
         var getPreflight = http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/kitchen/tickets"))
                 .header("Origin", "http://localhost:5173")
@@ -82,7 +104,8 @@ class KitchenSkeletonTests {
         assertThat(getPreflight.headers().firstValue("Access-Control-Allow-Origin"))
                 .contains("http://localhost:5173");
 
-        var postPreflight = http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/kitchen/tickets/" + UUID.randomUUID() + "/complete"))
+        var postPreflight = http.send(HttpRequest.newBuilder(
+                        URI.create("http://localhost:" + port + "/api/kitchen/tickets/" + UUID.randomUUID() + "/start"))
                 .header("Origin", "http://localhost:5173")
                 .header("Access-Control-Request-Method", "POST")
                 .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
@@ -106,5 +129,17 @@ class KitchenSkeletonTests {
                 .timeout(Duration.ofSeconds(10))
                 .GET()
                 .build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postJson(String path, String jsonBody) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .timeout(Duration.ofSeconds(10));
+        if (jsonBody != null) {
+            builder.header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody));
+        } else {
+            builder.POST(HttpRequest.BodyPublishers.noBody());
+        }
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 }

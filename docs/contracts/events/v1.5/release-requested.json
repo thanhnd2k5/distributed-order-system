@@ -1,0 +1,14 @@
+{
+  "eventId": "c1f1a001-1111-4444-8888-000000000002",
+  "eventType": "ReleaseRequested",
+  "schemaVersion": 1,
+  "orderId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+  "branchId": "KITCHEN",
+  "occurredAt": "2026-11-21T09:16:10Z",
+  "causationId": null,
+  "payload": {
+    "cancelledBy": "KITCHEN",
+    "reasonCode": "SPOILED_INGREDIENT",
+    "spoiledIngredients": ["THIT_GA"]
+  }
+}

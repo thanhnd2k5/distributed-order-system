@@ -1,7 +1,5 @@
-import {dashboards} from "./dashboards";
+import { operations } from "./operations";
 
-export const navigation = [
-  dashboards
-]
+export const navigation = [operations];
 
-export {baseNavigation} from './baseNavigation'
+export { baseNavigation } from "./baseNavigation";

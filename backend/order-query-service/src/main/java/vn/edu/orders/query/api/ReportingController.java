@@ -20,7 +20,7 @@ public class ReportingController {
             "Central Order Replica (asynchronous logical replication; data may lag behind source sites)";
     private static final Set<String> ALLOWED_SITES = Set.of("POS01", "POS02", "ONLINE");
     private static final Set<String> ALLOWED_STATUSES = Set.of(
-            "PENDING_INVENTORY", "RESERVED", "FAILED", "DONE");
+            "PENDING_INVENTORY", "RESERVED", "FAILED", "DONE", "CANCELLED");
 
     private final ReportingStore store;
 
@@ -62,6 +62,9 @@ public class ReportingController {
                 summary.totalOrders(),
                 summary.bySite(),
                 summary.byStatus(),
+                summary.byCancelledReason(),
+                summary.byFailedReason(),
+                summary.branches(),
                 summary.subscriptions());
     }
 
@@ -85,7 +88,7 @@ public class ReportingController {
         if (!ALLOWED_STATUSES.contains(normalized)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Invalid status parameter: " + status
-                            + ". Allowed: PENDING_INVENTORY, RESERVED, FAILED, DONE");
+                            + ". Allowed: PENDING_INVENTORY, RESERVED, FAILED, DONE, CANCELLED");
         }
         return normalized;
     }

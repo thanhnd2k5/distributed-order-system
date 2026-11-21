@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "outbox.enabled=false",
+        "order.heartbeat-enabled=false",
         "spring.kafka.listener.auto-startup=false",
         "spring.jpa.properties.hibernate.default_schema=b1_test",
         "spring.flyway.default-schema=b1_test",
@@ -40,7 +41,7 @@ class OrderIntegrationTests {
     @AfterEach
     void deleteTestOrder() {
         jdbc.update("""
-                DELETE FROM b1_test.outbox_events WHERE aggregate_id IN (
+                DELETE FROM b1_test.outbox_events WHERE order_id IN (
                     SELECT order_id FROM b1_test.orders WHERE client_request_id = ?
                 )
                 """, requestId);
@@ -72,6 +73,9 @@ class OrderIntegrationTests {
         String orderId = JsonPath.read(a.body(), "$.orderId");
         assertThat(JsonPath.<String>read(b.body(), "$.orderId")).isEqualTo(orderId);
         assertThat(JsonPath.<String>read(a.body(), "$.status")).isEqualTo("PENDING_INVENTORY");
+        assertThat(JsonPath.<Integer>read(a.body(), "$.statusRank")).isEqualTo(0);
+        assertThat(JsonPath.<String>read(a.body(), "$.cancelFlag")).isEqualTo("NONE");
+        assertThat(JsonPath.<String>read(a.body(), "$.deliveryStatus")).isEqualTo("NOT_SENT");
         assertThat(JsonPath.<String>read(a.body(), "$.sourceSiteId")).isEqualTo("POS_TEST");
         String location = "/api/orders/" + orderId;
         assertThat(a.headers().firstValue("Location")).contains(location);
@@ -89,13 +93,14 @@ class OrderIntegrationTests {
         UUID id = UUID.fromString(orderId);
         String event = jdbc.queryForObject("""
                 SELECT payload::text FROM b1_test.outbox_events
-                WHERE aggregate_id = ? AND topic = 'order-events' AND message_key = ? AND sent_at IS NULL
+                WHERE order_id = ? AND kind = 'CREATE_ORDER' AND attempted = FALSE
+                  AND topic = 'order-events.POS_TEST' AND message_key = ? AND sent_at IS NULL
                 """, String.class, id, orderId);
         assertThat(JsonPath.<Integer>read(event, "$.schemaVersion")).isEqualTo(1);
         assertThat(JsonPath.<String>read(event, "$.eventType")).isEqualTo("OrderCreated");
         assertThat(JsonPath.<String>read(event, "$.orderId")).isEqualTo(orderId);
-        assertThat(JsonPath.<String>read(event, "$.sourceType")).isEqualTo("POS");
-        assertThat(JsonPath.<String>read(event, "$.sourceSiteId")).isEqualTo("POS_TEST");
+        assertThat(JsonPath.<String>read(event, "$.branchId")).isEqualTo("POS_TEST");
+        assertThat(JsonPath.<String>read(event, "$.payload.channel")).isEqualTo("POS");
         assertThat(Instant.parse(JsonPath.<String>read(event, "$.occurredAt"))).isNotNull();
         assertThat(JsonPath.<List<Integer>>read(event, "$.payload.items[*].quantity")).containsExactly(1, 2);
         assertThat(send(post(singleItem("COM_GA", "3"))).statusCode()).isEqualTo(409);
@@ -116,7 +121,8 @@ class OrderIntegrationTests {
     }
 
     @Test
-    void rejectsInvalidItemsAndReportsMissingOrder() throws Exception {
+    void rejectsInvalidItemsBeforeAnyDbOrOutboxWriteAndReportsMissingOrder() throws Exception {
+        long outboxBefore = countOutbox();
         assertThat(send(post(singleItem("NO_SUCH_DISH", "1"))).statusCode()).isEqualTo(400);
         assertThat(send(post(singleItem("COM_GA", "0"))).statusCode()).isEqualTo(400);
         assertThat(send(post(singleItem("COM_GA", "1.5"))).statusCode()).isEqualTo(400);
@@ -124,7 +130,52 @@ class OrderIntegrationTests {
                 {"clientRequestId":"%s","items":[{"dishId":"COM_GA","quantity":1},{"dishId":"COM_GA","quantity":2}]}
                 """.formatted(requestId))).statusCode()).isEqualTo(400);
         assertThat(orderCount()).isZero();
+        assertThat(countOutbox()).isEqualTo(outboxBefore);
         assertThat(send(request("/api/orders/" + UUID.randomUUID()).GET().build()).statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void cancelEndpointValidatesReasonCodeHandlesMissingTerminalAndRepeatedRequests() throws Exception {
+        var missingResp = send(postCancel(UUID.randomUUID(), """
+                {"reasonCode":"CUSTOMER_CHANGED_MIND"}
+                """));
+        assertThat(missingResp.statusCode()).isEqualTo(404);
+
+        var created = send(post(singleItem("COM_GA", "1")));
+        assertThat(created.statusCode()).isEqualTo(201);
+        UUID orderId = UUID.fromString(JsonPath.read(created.body(), "$.orderId"));
+
+        // Missing or non-customer reasonCode -> 400
+        assertThat(send(postCancel(orderId, "{}")).statusCode()).isEqualTo(400);
+        assertThat(send(postCancel(orderId, """
+                {"reasonCode":"INSUFFICIENT_INGREDIENTS"}
+                """)).statusCode()).isEqualTo(400);
+
+        // Mark CREATE_ORDER attempted=true so cancel routes through Kitchen (202)
+        jdbc.update("UPDATE b1_test.outbox_events SET attempted = TRUE WHERE order_id = ?", orderId);
+        var firstCancel = send(postCancel(orderId, """
+                {"reasonCode":"CUSTOMER_WAITED_TOO_LONG"}
+                """));
+        assertThat(firstCancel.statusCode()).isEqualTo(202);
+        assertThat(JsonPath.<String>read(firstCancel.body(), "$.cancelFlag")).isEqualTo("REQUESTED");
+
+        // Second cancel while cancel_flag != NONE returns 202 without adding a second outbox row
+        var secondCancel = send(postCancel(orderId, """
+                {"reasonCode":"CUSTOMER_CHANGED_MIND"}
+                """));
+        assertThat(secondCancel.statusCode()).isEqualTo(202);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM b1_test.outbox_events WHERE order_id = ? AND kind = 'CANCEL_REQUEST'",
+                Long.class, orderId)).isEqualTo(1L);
+
+        // Terminal order -> 409 Conflict
+        jdbc.update("UPDATE b1_test.orders SET status = 'DONE', status_rank = 2, cancel_flag = 'NONE' WHERE order_id = ?",
+                orderId);
+        var terminalCancel = send(postCancel(orderId, """
+                {"reasonCode":"CUSTOMER_CHANGED_MIND"}
+                """));
+        assertThat(terminalCancel.statusCode()).isEqualTo(409);
+        assertThat(JsonPath.<String>read(terminalCancel.body(), "$.currentStatus")).isEqualTo("DONE");
     }
 
     @Test
@@ -142,6 +193,10 @@ class OrderIntegrationTests {
         return jdbc.queryForObject("SELECT count(*) FROM b1_test.order_items", Long.class);
     }
 
+    private long countOutbox() {
+        return jdbc.queryForObject("SELECT count(*) FROM b1_test.outbox_events", Long.class);
+    }
+
     private long orderCount() {
         return jdbc.queryForObject("SELECT count(*) FROM b1_test.orders WHERE client_request_id = ?",
                 Long.class, requestId);
@@ -155,6 +210,11 @@ class OrderIntegrationTests {
 
     private HttpRequest post(String json) {
         return request("/api/orders").header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json)).build();
+    }
+
+    private HttpRequest postCancel(UUID orderId, String json) {
+        return request("/api/orders/" + orderId + "/cancel").header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json)).build();
     }
 
