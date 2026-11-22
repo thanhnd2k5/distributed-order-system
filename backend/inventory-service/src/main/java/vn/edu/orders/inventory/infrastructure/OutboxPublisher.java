@@ -22,7 +22,7 @@ import vn.edu.orders.inventory.config.InventoryProperties;
 @ConditionalOnProperty(name = "outbox.enabled", havingValue = "true")
 public class OutboxPublisher {
     private static final Logger log = LoggerFactory.getLogger(OutboxPublisher.class);
-    private static final int BATCH_LIMIT = 10;
+    private static final int BATCH_LIMIT = 20;
 
     private final JdbcClient jdbc;
     private final TransactionTemplate transaction;
@@ -44,7 +44,7 @@ public class OutboxPublisher {
         this.instanceId = properties.instanceId();
     }
 
-    @Scheduled(fixedDelay = 500)
+    @Scheduled(fixedDelay = 300)
     public void publishPending() {
         for (int i = 0; i < BATCH_LIMIT; i++) {
             if (!Boolean.TRUE.equals(transaction.execute(status -> publishOne()))) {
@@ -53,15 +53,16 @@ public class OutboxPublisher {
         }
     }
 
-    private boolean publishOne() {
+    public boolean publishOne() {
         var pending = jdbc.sql("""
-                SELECT event_id, event_type, topic, message_key, payload::text, attempt_count
+                SELECT id, event_id, event_type, topic, message_key, payload::text, attempt_count
                 FROM %s
-                WHERE sent_at IS NULL AND next_attempt_at <= now()
-                ORDER BY created_at, event_id
+                WHERE sent_at IS NULL AND next_attempt_at <= clock_timestamp()
+                ORDER BY id ASC
                 LIMIT 1 FOR UPDATE SKIP LOCKED
                 """.formatted(outbox))
                 .query((rs, row) -> new PendingEvent(
+                        rs.getLong("id"),
                         rs.getObject("event_id", UUID.class),
                         rs.getString("event_type"),
                         rs.getString("topic"),
@@ -78,18 +79,18 @@ public class OutboxPublisher {
             kafka.send(event.topic(), event.key(), event.payload()).get(6, TimeUnit.SECONDS);
         } catch (InterruptedException failure) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while publishing outbox event " + event.id(), failure);
+            throw new IllegalStateException("Interrupted while publishing outbox event " + event.eventId(), failure);
         } catch (ExecutionException | TimeoutException | KafkaException
                  | org.apache.kafka.common.KafkaException failure) {
             scheduleRetry(event, failure instanceof ExecutionException ? failure.getCause() : failure);
             return false;
         }
 
-        jdbc.sql("UPDATE " + outbox + " SET sent_at = clock_timestamp() WHERE event_id = :id")
+        jdbc.sql("UPDATE " + outbox + " SET sent_at = clock_timestamp() WHERE id = :id")
                 .param("id", event.id())
                 .update();
-        log.info("Inventory outbox published instanceId={} eventId={} orderId={} topic={} eventType={}",
-                instanceId, event.id(), event.key(), event.topic(), event.eventType());
+        log.info("Inventory outbox published instanceId={} id={} eventId={} key={} topic={} eventType={}",
+                instanceId, event.id(), event.eventId(), event.key(), event.topic(), event.eventType());
         return true;
     }
 
@@ -98,17 +99,18 @@ public class OutboxPublisher {
         jdbc.sql("""
                 UPDATE %s SET attempt_count = attempt_count + 1,
                     next_attempt_at = clock_timestamp() + (:delay * interval '1 second')
-                WHERE event_id = :id
+                WHERE id = :id
                 """.formatted(outbox))
                 .param("id", event.id())
                 .param("delay", delaySeconds)
                 .update();
-        log.warn("Inventory outbox send failed instanceId={} eventId={} orderId={} topic={} retryInSeconds={}: {}",
-                instanceId, event.id(), event.key(), event.topic(), delaySeconds, failure.toString());
+        log.warn("Inventory outbox send failed instanceId={} id={} eventId={} key={} topic={} retryInSeconds={}: {}",
+                instanceId, event.id(), event.eventId(), event.key(), event.topic(), delaySeconds, failure.toString());
     }
 
     private record PendingEvent(
-            UUID id,
+            long id,
+            UUID eventId,
             String eventType,
             String topic,
             String key,

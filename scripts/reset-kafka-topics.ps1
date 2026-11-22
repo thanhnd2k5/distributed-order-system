@@ -13,7 +13,24 @@ if ($busyPorts.Count -gt 0) {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $repoRoot 'infra/compose.kafka.yaml'
 $bootstrap = 'kafka-1:9092,kafka-2:9092,kafka-3:9092'
-$topics = @('order-events', 'status-events')
+
+$topicSpecs = @(
+    @{ Name = 'order-events.POS01'; Partitions = 2 },
+    @{ Name = 'order-events.POS02'; Partitions = 2 },
+    @{ Name = 'order-events.ONLINE'; Partitions = 2 },
+    @{ Name = 'cancel-events.POS01'; Partitions = 2 },
+    @{ Name = 'cancel-events.POS02'; Partitions = 2 },
+    @{ Name = 'cancel-events.ONLINE'; Partitions = 2 },
+    @{ Name = 'status-events.POS01'; Partitions = 1 },
+    @{ Name = 'status-events.POS02'; Partitions = 1 },
+    @{ Name = 'status-events.ONLINE'; Partitions = 1 },
+    @{ Name = 'kitchen-orders'; Partitions = 2 },
+    @{ Name = 'stock-commands'; Partitions = 2 },
+    @{ Name = 'menu-events'; Partitions = 1 },
+    @{ Name = 'dlq'; Partitions = 1 }
+)
+$legacyTopics = @('order-events', 'status-events')
+$allTopicsToDelete = @($topicSpecs | ForEach-Object { $_.Name }) + $legacyTopics
 
 function Invoke-KafkaExec {
     param([string[]]$KafkaArgs)
@@ -45,7 +62,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 $groupsToDelete = @($groups | Where-Object {
-    $_ -eq 'inventory-v1' -or $_ -eq 'kitchen-v1' -or $_ -match '^order-status-.*-v1$'
+    $_ -match '^(inventory|kitchen|order-status|order-menu)(-|$)'
 })
 
 foreach ($group in $groupsToDelete) {
@@ -72,9 +89,9 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-foreach ($topic in $topics) {
+foreach ($topic in $allTopicsToDelete) {
     if ($existingTopics -contains $topic) {
-        Write-Output ("Deleting dev topic '{0}'..." -f $topic)
+        Write-Output ("Deleting topic '{0}'..." -f $topic)
         Invoke-KafkaExec @('/opt/kafka/bin/kafka-topics.sh', '--bootstrap-server', $bootstrap, '--delete', '--if-exists', '--topic', $topic) | Out-Host
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
@@ -88,7 +105,7 @@ while ($true) {
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
-    $remaining = @($topics | Where-Object { $currentTopics -contains $_ })
+    $remaining = @($allTopicsToDelete | Where-Object { $currentTopics -contains $_ })
     if ($remaining.Count -eq 0) {
         break
     }
@@ -99,16 +116,19 @@ while ($true) {
     Start-Sleep -Milliseconds 500
 }
 
-foreach ($topic in $topics) {
-    Write-Output ("Creating dev topic '{0}' (partitions=3, replication-factor=3, min.insync.replicas=2)..." -f $topic)
+foreach ($spec in $topicSpecs) {
+    $topic = $spec.Name
+    $partitions = $spec.Partitions
+    Write-Output ("Creating topic '{0}' (partitions={1}, rf=3, min.insync.replicas=2, retention.ms=604800000)..." -f $topic, $partitions)
     Invoke-KafkaExec @(
         '/opt/kafka/bin/kafka-topics.sh',
         '--bootstrap-server', $bootstrap,
         '--create',
         '--topic', $topic,
-        '--partitions', '3',
+        '--partitions', [string]$partitions,
         '--replication-factor', '3',
-        '--config', 'min.insync.replicas=2'
+        '--config', 'min.insync.replicas=2',
+        '--config', 'retention.ms=604800000'
     ) | Out-Host
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
@@ -118,13 +138,15 @@ foreach ($topic in $topics) {
 $isrDeadline = (Get-Date).AddSeconds(30)
 while ($true) {
     $allReady = $true
-    foreach ($topic in $topics) {
+    foreach ($spec in $topicSpecs) {
+        $topic = $spec.Name
+        $expectedPartitions = $spec.Partitions
         $desc = Invoke-KafkaExec @('/opt/kafka/bin/kafka-topics.sh', '--bootstrap-server', $bootstrap, '--describe', '--topic', $topic)
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
         $partitionLines = @($desc | Where-Object { $_ -match 'Partition:\s+\d+' })
-        if ($partitionLines.Count -ne 3) {
+        if ($partitionLines.Count -ne $expectedPartitions) {
             $allReady = $false
             break
         }
@@ -153,10 +175,10 @@ while ($true) {
     Start-Sleep -Milliseconds 500
 }
 
-foreach ($topic in $topics) {
+foreach ($spec in $topicSpecs) {
     Write-Output ""
-    Write-Output ("=== Describe topic: {0} ===" -f $topic)
-    Invoke-KafkaExec @('/opt/kafka/bin/kafka-topics.sh', '--bootstrap-server', $bootstrap, '--describe', '--topic', $topic)
+    Write-Output ("=== Describe topic: {0} ===" -f $spec.Name)
+    Invoke-KafkaExec @('/opt/kafka/bin/kafka-topics.sh', '--bootstrap-server', $bootstrap, '--describe', '--topic', $spec.Name)
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }

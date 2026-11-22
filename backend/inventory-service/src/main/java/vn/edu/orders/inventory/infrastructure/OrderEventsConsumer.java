@@ -5,18 +5,21 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import vn.edu.orders.contracts.events.EventEnvelope;
 import vn.edu.orders.contracts.events.EventTopics;
 import vn.edu.orders.contracts.events.EventType;
-import vn.edu.orders.contracts.events.OrderCreatedEvent;
+import vn.edu.orders.contracts.events.InvalidEventException;
+import vn.edu.orders.contracts.events.OrderCreatedPayload;
 import vn.edu.orders.inventory.application.DemoFailpoint;
 import vn.edu.orders.inventory.application.EventProcessingContext;
-import vn.edu.orders.inventory.application.InvalidEventException;
-import vn.edu.orders.inventory.application.InventoryReservationService;
-import vn.edu.orders.inventory.application.ReservationResult;
+import vn.edu.orders.inventory.application.InventoryOrderService;
+import vn.edu.orders.inventory.application.InventoryOrderService.OrderProcessingResult;
 import vn.edu.orders.inventory.config.InventoryProperties;
 
 @Component
@@ -25,37 +28,87 @@ public class OrderEventsConsumer {
     private static final Logger log = LoggerFactory.getLogger(OrderEventsConsumer.class);
 
     private final ObjectMapper json;
-    private final InventoryReservationService reservationService;
+    private final JavaType orderCreatedEnvelopeType;
+    private final InventoryOrderService orderService;
+    private final DlqService dlqService;
     private final DemoFailpoint failpoint;
-    private final String instanceId;
+    private final InventoryProperties properties;
 
     public OrderEventsConsumer(
             ObjectMapper json,
-            InventoryReservationService reservationService,
+            InventoryOrderService orderService,
+            DlqService dlqService,
             DemoFailpoint failpoint,
             InventoryProperties properties
     ) {
         this.json = json;
-        this.reservationService = reservationService;
+        this.orderCreatedEnvelopeType = json.getTypeFactory()
+                .constructParametricType(EventEnvelope.class, OrderCreatedPayload.class);
+        this.orderService = orderService;
+        this.dlqService = dlqService;
         this.failpoint = failpoint;
-        this.instanceId = properties.instanceId();
+        this.properties = properties;
     }
 
     @KafkaListener(
             id = LISTENER_ID,
             idIsGroup = false,
             groupId = "${spring.kafka.consumer.group-id}",
-            topics = EventTopics.ORDER_EVENTS,
+            topicPattern = EventTopics.ORDER_EVENTS_PATTERN,
             concurrency = "1")
-    public void onMessage(ConsumerRecord<String, String> record) {
-        String topic = record.topic();
-        int partition = record.partition();
-        long offset = record.offset();
-        String raw = record.value();
+    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
+        EventProcessingContext context = new EventProcessingContext(
+                record.topic(), record.partition(), record.offset(), record.timestamp(), record.key());
 
+        // Validate topic -> branch mapping and envelope; retry poison parsing up to maxPoisonAttempts before DLQ
+        ParsedOrderMessage parsed = null;
+        InvalidEventException poisonFailure = null;
+        int attempts = Math.max(1, properties.maxPoisonAttempts());
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                parsed = parseOrderCreated(record);
+                poisonFailure = null;
+                break;
+            } catch (InvalidEventException ex) {
+                poisonFailure = ex;
+                if (attempt < attempts && properties.poisonBackoffMs() > 0) {
+                    sleepQuietly(properties.poisonBackoffMs());
+                }
+            }
+        }
+
+        if (poisonFailure != null) {
+            dlqService.sendToDlqAndRecordAlert(
+                    record,
+                    poisonFailure.eventId(),
+                    poisonFailure.orderId(),
+                    poisonFailure.getMessage(),
+                    poisonFailure.getClass().getSimpleName());
+            ack.acknowledge();
+            return;
+        }
+
+        OrderProcessingResult result;
+        if (parsed.invalidOrderDataDetail() != null) {
+            result = orderService.processInvalidOrderData(
+                    parsed.eventId(), parsed.orderId(), parsed.invalidOrderDataDetail(), context);
+        } else {
+            result = orderService.processOrderCreated(parsed.envelope(), context);
+        }
+
+        failpoint.maybeHaltAfterCommit(result, record.partition(), record.offset());
+        ack.acknowledge();
+    }
+
+    private ParsedOrderMessage parseOrderCreated(ConsumerRecord<String, String> record) {
+        try {
+            EventTopics.branchFromTopic(record.topic());
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidEventException("Invalid order-events topic: " + record.topic(), null, null, ex);
+        }
+
+        String raw = record.value();
         if (raw == null || raw.isBlank()) {
-            log.error("Poison message on Kafka topic (empty payload) instanceId={} topic={} partition={} offset={} eventId=unknown",
-                    instanceId, topic, partition, offset);
             throw new InvalidEventException("Empty event payload");
         }
 
@@ -63,69 +116,72 @@ public class OrderEventsConsumer {
         try {
             root = json.readTree(raw);
         } catch (JacksonException ex) {
-            log.error("Poison message on Kafka topic (malformed JSON) instanceId={} topic={} partition={} offset={} eventId=unknown: {}",
-                    instanceId, topic, partition, offset, ex.getOriginalMessage());
-            throw new InvalidEventException("Malformed JSON payload", null, null, ex);
+            throw new InvalidEventException("Malformed JSON payload: " + ex.getOriginalMessage(), null, null, ex);
+        }
+        if (root == null || !root.isObject()) {
+            throw new InvalidEventException("JSON payload must be an object");
         }
 
-        UUID readableEventId = tryReadUuid(root, "eventId");
-        UUID readableOrderId = tryReadUuid(root, "orderId");
+        UUID eventId = DlqService.tryReadUuid(root, "eventId");
+        UUID orderId = DlqService.tryReadUuid(root, "orderId");
+
+        if (eventId == null) {
+            throw new InvalidEventException("Missing or invalid eventId", null, orderId);
+        }
+
+        JsonNode versionNode = root.get("schemaVersion");
+        if (versionNode == null || !versionNode.isInt()) {
+            throw new InvalidEventException("Missing or invalid schemaVersion", eventId, orderId);
+        }
+        int schemaVersion = versionNode.asInt();
+        if (schemaVersion != EventTopics.SUPPORTED_SCHEMA_VERSION) {
+            throw new InvalidEventException("Unsupported schemaVersion: " + schemaVersion, eventId, orderId);
+        }
 
         JsonNode eventTypeNode = root.get("eventType");
         if (eventTypeNode == null || !eventTypeNode.isString() || eventTypeNode.asString().isBlank()) {
-            log.error("Poison message on Kafka topic (missing/invalid eventType) instanceId={} topic={} partition={} offset={} eventId={} orderId={}",
-                    instanceId, topic, partition, offset, readableEventId, readableOrderId);
-            throw new InvalidEventException("Missing or invalid eventType", readableEventId, readableOrderId);
+            throw new InvalidEventException("Missing or invalid eventType", eventId, orderId);
         }
-
         String eventTypeText = eventTypeNode.asString();
-        if (!EventType.OrderCreated.name().equals(eventTypeText)) {
-            log.warn("Skipping non-OrderCreated event on order-events instanceId={} topic={} partition={} offset={} eventId={} orderId={} eventType={}",
-                    instanceId, topic, partition, offset, readableEventId, readableOrderId, eventTypeText);
-            return;
-        }
-
-        OrderCreatedEvent event;
-        try {
-            event = json.readValue(raw, OrderCreatedEvent.class);
-        } catch (JacksonException ex) {
-            log.error("Poison message on Kafka topic (contract deserialization error) instanceId={} topic={} partition={} offset={} eventId={} orderId={}: {}",
-                    instanceId, topic, partition, offset, readableEventId, readableOrderId, ex.getOriginalMessage());
+        var eventTypeOpt = EventType.fromValue(eventTypeText);
+        if (eventTypeOpt.isEmpty() || eventTypeOpt.get() != EventType.OrderCreated) {
             throw new InvalidEventException(
-                    "Invalid OrderCreatedEvent JSON", readableEventId, readableOrderId, ex);
+                    "Unexpected or unknown eventType on order-events: " + eventTypeText, eventId, orderId);
         }
 
-        if (event.orderId() != null
-                && record.key() != null
-                && !event.orderId().toString().equals(record.key())) {
+        if (orderId == null) {
+            throw new InvalidEventException("Missing or invalid orderId", eventId, null);
+        }
+
+        if (record.key() != null && !orderId.toString().equals(record.key())) {
             log.warn("OrderCreated Kafka key does not match orderId instanceId={} topic={} partition={} offset={} eventId={} orderId={} kafkaKey={}",
-                    instanceId, topic, partition, offset, event.eventId(), event.orderId(), record.key());
+                    properties.instanceId(), record.topic(), record.partition(), record.offset(),
+                    eventId, orderId, record.key());
         }
 
-        ReservationResult result;
+        // Envelope is readable & supported OrderCreated; payload/field errors become FAILED(INVALID_ORDER_DATA), NOT dlq
         try {
-            result = reservationService.processOrderCreated(event, new EventProcessingContext(partition, offset));
-        } catch (InvalidEventException ex) {
-            log.error("Poison message on Kafka topic (contract validation error) instanceId={} topic={} partition={} offset={} eventId={} orderId={}: {}",
-                    instanceId, topic, partition, offset,
-                    ex.eventId() != null ? ex.eventId() : readableEventId,
-                    ex.orderId() != null ? ex.orderId() : readableOrderId,
-                    ex.getMessage());
-            throw ex;
+            EventEnvelope<OrderCreatedPayload> envelope = json.readValue(raw, orderCreatedEnvelopeType);
+            return new ParsedOrderMessage(eventId, orderId, envelope, null);
+        } catch (JacksonException ex) {
+            return new ParsedOrderMessage(eventId, orderId, null,
+                    "Invalid OrderCreated order data: " + ex.getOriginalMessage());
         }
-
-        failpoint.maybeHaltAfterCommit(result, partition, offset);
     }
 
-    private UUID tryReadUuid(JsonNode root, String field) {
-        JsonNode node = root.get(field);
-        if (node == null || !node.isString()) {
-            return null;
-        }
+    private static void sleepQuietly(long millis) {
         try {
-            return UUID.fromString(node.asString());
-        } catch (IllegalArgumentException ignored) {
-            return null;
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
         }
+    }
+
+    private record ParsedOrderMessage(
+            UUID eventId,
+            UUID orderId,
+            EventEnvelope<OrderCreatedPayload> envelope,
+            String invalidOrderDataDetail
+    ) {
     }
 }

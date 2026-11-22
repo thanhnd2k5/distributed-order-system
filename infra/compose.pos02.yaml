@@ -21,7 +21,9 @@ services:
     volumes:
       - pos02-data:/var/lib/postgresql
     networks:
-      default:
+      pos02-net:
+        aliases:
+          - pos02-db
       order-replication-net:
         aliases:
           - pos02-db
@@ -33,6 +35,8 @@ services:
 volumes:
   pos02-data:
 networks:
+  pos02-net:
+    name: pos02-net
   order-replication-net:
     name: order-replication-net
     external: true

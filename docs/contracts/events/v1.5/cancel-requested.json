@@ -1,0 +1,12 @@
+{
+  "eventId": "2e5e2e51-9a14-4d30-9f5c-010203040506",
+  "eventType": "CancelRequested",
+  "schemaVersion": 1,
+  "orderId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+  "branchId": "POS01",
+  "occurredAt": "2026-11-21T09:15:05Z",
+  "causationId": null,
+  "payload": {
+    "reasonCode": "CUSTOMER_CHANGED_MIND"
+  }
+}

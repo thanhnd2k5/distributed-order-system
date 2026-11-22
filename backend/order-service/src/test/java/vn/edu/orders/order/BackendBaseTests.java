@@ -1,13 +1,12 @@
 package vn.edu.orders.order;
 
+import com.jayway.jsonpath.JsonPath;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
-
-import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,9 +15,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// Uses the local PostgreSQL from compose.base.yaml, in a separate test schema.
+// Uses real PostgreSQL in a dedicated test schema.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "outbox.enabled=false",
+        "order.heartbeat-enabled=false",
         "spring.kafka.listener.auto-startup=false",
         "spring.jpa.properties.hibernate.default_schema=b0_test",
         "spring.flyway.default-schema=b0_test",
@@ -39,23 +39,24 @@ class BackendBaseTests {
         assertThat(jdbc.queryForList("""
                 SELECT version FROM b0_test.flyway_schema_history
                 WHERE success AND version IS NOT NULL ORDER BY installed_rank
-                """, String.class)).containsSubsequence("1", "2");
+                """, String.class)).containsSubsequence("1", "2", "3", "4", "5", "6", "7");
         var response = get("/actuator/health");
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(JsonPath.<String>read(response.body(), "$.status")).isEqualTo("UP");
     }
 
     @Test
-    void menuReturnsSeededDishesInOrderAndExcludesInactiveDishes() throws Exception {
+    void menuReturnsSeededDishesInOrderAndExcludesInactiveOrHiddenDishes() throws Exception {
         jdbc.update("INSERT INTO b0_test.menu_items VALUES (?, ?, ?)",
                 "INACTIVE_TEST", "Món tạm ngừng", false);
         try {
             var response = get("/api/menu");
             assertThat(response.statusCode()).isEqualTo(200);
-            assertThat(JsonPath.<List<String>>read(response.body(), "$[*].dishId"))
-                    .containsExactly("CHAO_GA", "COM_GA");
-            assertThat(JsonPath.<List<String>>read(response.body(), "$[*].name"))
-                    .containsExactly("Cháo gà", "Cơm gà");
+            assertThat(JsonPath.<Boolean>read(response.body(), "$.stale")).isTrue();
+            assertThat(JsonPath.<List<String>>read(response.body(), "$.dishes[*].dishId"))
+                    .containsExactly("CHAO_GA", "COM_GA", "PHO_BO");
+            assertThat(JsonPath.<List<String>>read(response.body(), "$.dishes[*].name"))
+                    .containsExactly("Cháo gà", "Cơm gà", "Phở bò");
         } finally {
             jdbc.update("DELETE FROM b0_test.menu_items WHERE dish_id = ?", "INACTIVE_TEST");
         }

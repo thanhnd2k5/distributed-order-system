@@ -3,29 +3,28 @@ export const authKeys = {
   me: ["auth", "me"],
 };
 
-export const orderKeys = {
-  all: ["orders"],
-  site: (siteId) => ["orders", siteId],
-  menu: (siteId) => ["orders", siteId, "menu"],
-  list: (siteId) => ["orders", siteId, "list"],
-  detail: (siteId, orderId) => ["orders", siteId, "detail", orderId],
-};
-
-export const inventoryKeys = {
-  all: ["inventory"],
-  ingredients: ["inventory", "ingredients"],
-  recipes: ["inventory", "recipes"],
-  reservation: (orderId) => ["inventory", "reservation", orderId],
-};
-
-export const kitchenKeys = {
-  all: ["kitchen"],
-  tickets: (status = "ALL") => ["kitchen", "tickets", status || "ALL"],
-};
-
-export const reportingKeys = {
-  all: ["reporting"],
-  summary: ["reporting", "summary"],
-  orders: (filters = {}) => ["reporting", "orders", filters],
-  detail: (orderId) => ["reporting", "detail", orderId],
+export const orderLifecycleKeys = {
+  branch: (branchId) => ["branch", branchId],
+  branchMenu: (branchId) => ["branch", branchId, "menu"],
+  branchOrders: (branchId) => ["branch", branchId, "orders"],
+  branchOrderDetail: (branchId, orderId) => [
+    "branch",
+    branchId,
+    "orders",
+    orderId,
+  ],
+  branchMonitor: (branchId) => ["branch", branchId, "monitor"],
+  kitchenTickets: (status) => ["kitchen", "tickets", status || "ACTIVE"],
+  kitchenAlerts: (kind) => ["kitchen", "alerts", kind || "ALL"],
+  kitchenMonitor: () => ["kitchen", "monitor"],
+  inventoryStock: (needsCheckOnly) => [
+    "inventory",
+    "stock",
+    Boolean(needsCheckOnly),
+  ],
+  inventoryMenuSnapshot: () => ["inventory", "menu-snapshot"],
+  inventoryAlerts: (kind) => ["inventory", "alerts", kind || "ALL"],
+  inventoryMonitor: () => ["inventory", "monitor"],
+  reportingSummary: () => ["reporting", "summary"],
+  reportingOrders: (filters) => ["reporting", "orders", filters || {}],
 };

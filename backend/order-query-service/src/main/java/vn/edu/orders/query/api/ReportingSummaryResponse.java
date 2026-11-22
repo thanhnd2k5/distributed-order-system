@@ -10,6 +10,9 @@ public record ReportingSummaryResponse(
         long totalOrders,
         Map<String, Long> bySite,
         Map<String, Long> byStatus,
+        Map<String, Long> byCancelledReason,
+        Map<String, Long> byFailedReason,
+        List<BranchSummary> branches,
         List<SubscriptionStatus> subscriptions
 ) {
 }

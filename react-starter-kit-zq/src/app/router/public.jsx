@@ -9,49 +9,72 @@ const publicRoutes = {
       children: [
         {
           index: true,
-          element: <Navigate to="/dashboard" replace />,
+          element: <Navigate to="/ops/branch" replace />,
         },
         {
-          path: "dashboard",
-          lazy: async () => ({
-            Component: (await import("app/pages/central/dashboard")).default,
-          }),
+          path: "ops",
+          children: [
+            {
+              index: true,
+              element: <Navigate to="/ops/branch" replace />,
+            },
+            {
+              path: "branch",
+              lazy: async () => ({
+                Component: (await import("app/pages/operations/branch"))
+                  .default,
+              }),
+            },
+            {
+              path: "kitchen",
+              lazy: async () => ({
+                Component: (await import("app/pages/operations/kitchen"))
+                  .default,
+              }),
+            },
+            {
+              path: "inventory",
+              lazy: async () => ({
+                Component: (await import("app/pages/operations/inventory"))
+                  .default,
+              }),
+            },
+            {
+              path: "reporting",
+              lazy: async () => ({
+                Component: (await import("app/pages/operations/reporting"))
+                  .default,
+              }),
+            },
+            {
+              path: "demo",
+              lazy: async () => ({
+                Component: (await import("app/pages/operations/demo")).default,
+              }),
+            },
+          ],
         },
         {
-          path: "pos",
-          element: <Navigate to="/pos/POS01" replace />,
-        },
-        {
-          path: "pos/:siteId",
-          lazy: async () => ({
-            Component: (await import("app/pages/orders/pos")).default,
-          }),
-        },
-        {
-          path: "online",
-          lazy: async () => ({
-            Component: (await import("app/pages/orders/online")).default,
-          }),
-        },
-        {
-          path: "inventory",
-          lazy: async () => ({
-            Component: (await import("app/pages/central/inventory")).default,
-          }),
+          path: "branch",
+          element: <Navigate to="/ops/branch" replace />,
         },
         {
           path: "kitchen",
-          lazy: async () => ({
-            Component: (await import("app/pages/central/kitchen")).default,
-          }),
+          element: <Navigate to="/ops/kitchen" replace />,
+        },
+        {
+          path: "inventory",
+          element: <Navigate to="/ops/inventory" replace />,
+        },
+        {
+          path: "reporting",
+          element: <Navigate to="/ops/reporting" replace />,
+        },
+        {
+          path: "demo",
+          element: <Navigate to="/ops/demo" replace />,
         },
       ],
-    },
-    {
-      path: "*",
-      lazy: async () => ({
-        Component: (await import("app/pages/errors/404")).default,
-      }),
     },
   ],
 };

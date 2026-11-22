@@ -6,7 +6,10 @@ import clsx from "clsx";
 // Local Imports
 import Logo from "assets/appLogo.svg?react";
 import { Menu } from "./Menu";
+// import { Item } from "./Menu/Item";
+import { Profile } from "../../Profile";
 import { useThemeContext } from "app/contexts/theme/context";
+// import { settings } from "app/navigation/settings";
 
 // ----------------------------------------------------------------------
 
@@ -22,7 +25,7 @@ export function MainPanel({ nav, setActiveSegment, activeSegment }) {
       >
         {/* Application Logo */}
         <div className="flex pt-3.5">
-          <Link to="/dashboard">
+          <Link to="/">
             <Logo className="size-10 text-primary-600 dark:text-primary-400" />
           </Link>
         </div>
@@ -33,11 +36,17 @@ export function MainPanel({ nav, setActiveSegment, activeSegment }) {
           setActiveSegment={setActiveSegment}
         />
 
-        {/* Bottom Area (No-Auth Demo Mode) */}
-        <div className="flex flex-col items-center py-3">
-          <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-gray-500 uppercase dark:bg-dark-700 dark:text-dark-300">
-            Demo
-          </span>
+        {/* Bottom Links */}
+        <div className="flex flex-col items-center space-y-3 py-2.5">
+          {/* <Item
+            id={settings.id}
+            component={Link}
+            to="/settings/appearance"
+            title={"Settings"}
+            isActive={activeSegment === settings.path}
+            Icon={settings.Icon}
+          /> */}
+          <Profile />
         </div>
       </div>
     </div>

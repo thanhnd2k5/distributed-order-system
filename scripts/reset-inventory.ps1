@@ -20,10 +20,10 @@ if ($busyPorts.Count -gt 0) {
 }
 
 $presets = @{
-    NORMAL          = @{ GAO = 1000L; THIT_GA = 1500L }
-    LAST_PORTION    = @{ GAO = 1000L; THIT_GA = 150L }
-    MISSING_RICE    = @{ GAO = 50L; THIT_GA = 1500L }
-    OFFLINE_LIMITED = @{ GAO = 1000L; THIT_GA = 150L }
+    NORMAL          = @{ GAO = 1000; THIT_GA = 1500; BANH_PHO = 1000; THIT_BO = 1000; HANH_LA = 500 }
+    LAST_PORTION    = @{ GAO = 1000; THIT_GA = 150; BANH_PHO = 1000; THIT_BO = 1000; HANH_LA = 500 }
+    MISSING_RICE    = @{ GAO = 50; THIT_GA = 1500; BANH_PHO = 1000; THIT_BO = 1000; HANH_LA = 500 }
+    OFFLINE_LIMITED = @{ GAO = 1000; THIT_GA = 150; BANH_PHO = 1000; THIT_BO = 1000; HANH_LA = 500 }
 }
 
 $target = $presets[$Preset]
@@ -51,7 +51,7 @@ $sql = @"
 \set ON_ERROR_STOP on
 DO `$`$
 BEGIN
-    IF to_regclass('$Schema.ingredients') IS NULL THEN
+    IF to_regclass('$Schema.stock') IS NULL AND to_regclass('$Schema.ingredients') IS NULL THEN
         RAISE EXCEPTION 'Schema "%" is not initialized with inventory tables yet. Run inventory-service once to apply Flyway migrations.', '$Schema';
     END IF;
 END
@@ -59,16 +59,34 @@ END
 BEGIN;
 SET LOCAL search_path TO $Schema;
 DELETE FROM outbox_events;
-DELETE FROM reservation_items;
-DELETE FROM inventory_order_decisions;
 DELETE FROM processed_events;
-UPDATE ingredients SET available_quantity = $($target.GAO), updated_at = now() WHERE ingredient_id = 'GAO';
-UPDATE ingredients SET available_quantity = $($target.THIT_GA), updated_at = now() WHERE ingredient_id = 'THIT_GA';
+DO `$`$
+BEGIN
+    IF to_regclass('$Schema.stock') IS NOT NULL THEN
+        DELETE FROM inventory_reservations;
+        DELETE FROM inventory_orders;
+        IF to_regclass('$Schema.alerts') IS NOT NULL THEN DELETE FROM alerts; END IF;
+        UPDATE stock SET available = $($target.GAO), reserved = 0, consumed = 0, wasted = 0, needs_check = FALSE, updated_at = now() WHERE ingredient_id = 'GAO';
+        UPDATE stock SET available = $($target.THIT_GA), reserved = 0, consumed = 0, wasted = 0, needs_check = FALSE, updated_at = now() WHERE ingredient_id = 'THIT_GA';
+        UPDATE stock SET available = $($target.BANH_PHO), reserved = 0, consumed = 0, wasted = 0, needs_check = FALSE, updated_at = now() WHERE ingredient_id = 'BANH_PHO';
+        UPDATE stock SET available = $($target.THIT_BO), reserved = 0, consumed = 0, wasted = 0, needs_check = FALSE, updated_at = now() WHERE ingredient_id = 'THIT_BO';
+        UPDATE stock SET available = $($target.HANH_LA), reserved = 0, consumed = 0, wasted = 0, needs_check = FALSE, updated_at = now() WHERE ingredient_id = 'HANH_LA';
+        IF to_regclass('$Schema.menu_version') IS NOT NULL THEN
+            UPDATE menu_version SET epoch = 1, seq = 1 WHERE id = TRUE;
+        END IF;
+        IF to_regclass('$Schema.dish_status') IS NOT NULL THEN
+            UPDATE dish_status SET status = 'AVAILABLE', epoch = 1, seq = 1;
+        END IF;
+    ELSE
+        DELETE FROM reservation_items;
+        DELETE FROM inventory_order_decisions;
+        UPDATE ingredients SET available_quantity = $($target.GAO), updated_at = now() WHERE ingredient_id = 'GAO';
+        UPDATE ingredients SET available_quantity = $($target.THIT_GA), updated_at = now() WHERE ingredient_id = 'THIT_GA';
+    END IF;
+END
+`$`$;
 COMMIT;
-SELECT ingredient_id, name, unit, available_quantity, updated_at FROM $Schema.ingredients ORDER BY ingredient_id;
 SELECT
-    (SELECT count(*) FROM $Schema.inventory_order_decisions) AS decisions,
-    (SELECT count(*) FROM $Schema.reservation_items) AS reservations,
     (SELECT count(*) FROM $Schema.processed_events) AS processed_events,
     (SELECT count(*) FROM $Schema.outbox_events) AS outbox_events;
 "@

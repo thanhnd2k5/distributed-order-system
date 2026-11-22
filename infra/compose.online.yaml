@@ -21,7 +21,9 @@ services:
     volumes:
       - online-data:/var/lib/postgresql
     networks:
-      default:
+      online-net:
+        aliases:
+          - online-db
       order-replication-net:
         aliases:
           - online-db
@@ -33,6 +35,8 @@ services:
 volumes:
   online-data:
 networks:
+  online-net:
+    name: online-net
   order-replication-net:
     name: order-replication-net
     external: true

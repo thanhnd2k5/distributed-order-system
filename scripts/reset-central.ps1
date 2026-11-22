@@ -10,9 +10,16 @@ if ($busyPorts.Count -gt 0) {
     exit 1
 }
 
-& docker network inspect order-replication-net *> $null
-if ($LASTEXITCODE -ne 0) {
-    & docker network create order-replication-net | Out-Host
+$prev = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    & docker network inspect order-replication-net 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        & docker network create order-replication-net | Out-Host
+    }
+}
+finally {
+    $ErrorActionPreference = $prev
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -35,8 +42,6 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# Drop subscriptions first so apply workers cannot race DELETE and leave the
-# replica divergent. setup-replication.ps1 recreates them with a fresh copy.
 $sql = @"
 \set ON_ERROR_STOP on
 DO `$`$
@@ -50,7 +55,6 @@ DO `$`$
 DECLARE
     sub text;
 BEGIN
-    -- DROP (not slot_name=NONE) so PostgreSQL also drops the replication slot on the publisher.
     FOREACH sub IN ARRAY ARRAY['pos01_sub', 'pos02_sub', 'online_sub'] LOOP
         IF EXISTS (SELECT 1 FROM pg_subscription WHERE subname = sub) THEN
             EXECUTE format('DROP SUBSCRIPTION %I', sub);
@@ -66,6 +70,13 @@ DELETE FROM pos02.order_items;
 DELETE FROM pos02.orders;
 DELETE FROM online.order_items;
 DELETE FROM online.orders;
+DO `$`$
+BEGIN
+    IF to_regclass('pos01.replication_heartbeat') IS NOT NULL THEN DELETE FROM pos01.replication_heartbeat; END IF;
+    IF to_regclass('pos02.replication_heartbeat') IS NOT NULL THEN DELETE FROM pos02.replication_heartbeat; END IF;
+    IF to_regclass('online.replication_heartbeat') IS NOT NULL THEN DELETE FROM online.replication_heartbeat; END IF;
+END
+`$`$;
 COMMIT;
 SELECT
     (SELECT count(*) FROM pos01.orders) AS pos01_orders,
@@ -74,7 +85,7 @@ SELECT
     (SELECT count(*) FROM reporting.all_orders) AS all_orders;
 "@
 
-Write-Output 'Resetting central-db: dropping subscriptions, then clearing fragment tables...'
+Write-Output 'Resetting central-db: dropping subscriptions, then clearing fragment tables and heartbeats...'
 $prev = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 try {

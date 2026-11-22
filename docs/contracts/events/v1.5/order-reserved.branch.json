@@ -1,0 +1,10 @@
+{
+  "eventId": "a052f6f5-8fe2-43cf-8e82-59dfcf580240",
+  "eventType": "OrderReserved",
+  "schemaVersion": 1,
+  "orderId": "d967e06a-090d-4abc-9fb2-c5ec54306e08",
+  "branchId": "POS01",
+  "occurredAt": "2026-11-21T09:15:01Z",
+  "causationId": "5ffac880-b377-43d2-ae6c-3c5df8805a63",
+  "payload": {}
+}

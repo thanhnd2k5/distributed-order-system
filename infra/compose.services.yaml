@@ -1,0 +1,213 @@
+name: distributed-order-services
+
+x-service-healthcheck: &service-healthcheck
+  test: ["CMD-SHELL", "curl -fsS http://localhost:$$SERVER_PORT/actuator/health >/dev/null"]
+  interval: 5s
+  timeout: 4s
+  retries: 24
+  start_period: 15s
+
+services:
+  inventory-1:
+    build:
+      context: ..
+      dockerfile: infra/service.Dockerfile
+      args:
+        MODULE: inventory-service
+    environment:
+      SERVER_PORT: "8084"
+      DB_URL: jdbc:postgresql://inventory-db:5432/inventory_db
+      DB_USERNAME: inventory_app
+      DB_PASSWORD: inventory_demo
+      DB_SCHEMA: inventory
+      INSTANCE_ID: inventory-1
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_GROUP_ID: inventory-v1
+      OUTBOX_ENABLED: "true"
+      HEARTBEAT_ENABLED: "true"
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:8084:8084"
+    networks:
+      - inventory-net
+      - kafka-net
+      - api-net
+    healthcheck: *service-healthcheck
+
+  inventory-2:
+    build:
+      context: ..
+      dockerfile: infra/service.Dockerfile
+      args:
+        MODULE: inventory-service
+    environment:
+      SERVER_PORT: "18084"
+      DB_URL: jdbc:postgresql://inventory-db:5432/inventory_db
+      DB_USERNAME: inventory_app
+      DB_PASSWORD: inventory_demo
+      DB_SCHEMA: inventory
+      INSTANCE_ID: inventory-2
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_GROUP_ID: inventory-v1
+      OUTBOX_ENABLED: "true"
+      HEARTBEAT_ENABLED: "false"
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:18084:18084"
+    networks:
+      - inventory-net
+      - kafka-net
+      - api-net
+    healthcheck: *service-healthcheck
+
+  kitchen:
+    build:
+      context: ..
+      dockerfile: infra/service.Dockerfile
+      args:
+        MODULE: kitchen-service
+    environment:
+      SERVER_PORT: "8085"
+      DB_URL: jdbc:postgresql://kitchen-db:5432/kitchen_db
+      DB_USERNAME: kitchen_app
+      DB_PASSWORD: kitchen_demo
+      DB_SCHEMA: kitchen
+      KITCHEN_INSTANCE_ID: kitchen-1
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_GROUP_ID: kitchen-v1
+      OUTBOX_ENABLED: "true"
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:8085:8085"
+    networks:
+      - kitchen-net
+      - kafka-net
+      - api-net
+    healthcheck: *service-healthcheck
+
+  pos01:
+    build:
+      context: ..
+      dockerfile: infra/service.Dockerfile
+      args:
+        MODULE: order-service
+    environment:
+      SERVER_PORT: "8081"
+      DB_URL: jdbc:postgresql://pos01-db:5432/pos01_orders
+      DB_USERNAME: order_app
+      DB_PASSWORD: order_demo
+      DB_SCHEMA: pos01
+      SITE_ID: POS01
+      SOURCE_TYPE: POS
+      INSTANCE_ID: pos01-1
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      INVENTORY_BASE_URL: http://inventory-1:8084
+      OUTBOX_ENABLED: "true"
+      ORDER_HEARTBEAT_ENABLED: "true"
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:8081:8081"
+    networks:
+      - pos01-net
+      - kafka-net
+      - api-net
+    healthcheck: *service-healthcheck
+
+  pos02:
+    build:
+      context: ..
+      dockerfile: infra/service.Dockerfile
+      args:
+        MODULE: order-service
+    environment:
+      SERVER_PORT: "8082"
+      DB_URL: jdbc:postgresql://pos02-db:5432/pos02_orders
+      DB_USERNAME: order_app
+      DB_PASSWORD: order_demo
+      DB_SCHEMA: pos02
+      SITE_ID: POS02
+      SOURCE_TYPE: POS
+      INSTANCE_ID: pos02-1
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      INVENTORY_BASE_URL: http://inventory-1:8084
+      OUTBOX_ENABLED: "true"
+      ORDER_HEARTBEAT_ENABLED: "true"
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:8082:8082"
+    networks:
+      - pos02-net
+      - kafka-net
+      - api-net
+    healthcheck: *service-healthcheck
+
+  online:
+    build:
+      context: ..
+      dockerfile: infra/service.Dockerfile
+      args:
+        MODULE: order-service
+    environment:
+      SERVER_PORT: "8083"
+      DB_URL: jdbc:postgresql://online-db:5432/online_orders
+      DB_USERNAME: order_app
+      DB_PASSWORD: order_demo
+      DB_SCHEMA: online
+      SITE_ID: ONLINE
+      SOURCE_TYPE: ONLINE
+      INSTANCE_ID: online-1
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      INVENTORY_BASE_URL: http://inventory-1:8084
+      OUTBOX_ENABLED: "true"
+      ORDER_HEARTBEAT_ENABLED: "true"
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:8083:8083"
+    networks:
+      - online-net
+      - kafka-net
+      - api-net
+    healthcheck: *service-healthcheck
+
+  order-query-service:
+    build:
+      context: ..
+      dockerfile: infra/service.Dockerfile
+      args:
+        MODULE: order-query-service
+    environment:
+      SERVER_PORT: "8080"
+      DB_URL: jdbc:postgresql://central-db:5432/central_orders_db
+      FLYWAY_DB_URL: jdbc:postgresql://central-db:5432/central_orders_db
+      FRONTEND_ORIGIN: http://localhost:5173
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - central-net
+      - api-net
+    healthcheck: *service-healthcheck
+
+networks:
+  kafka-net:
+    name: kafka-net
+    external: true
+  pos01-net:
+    name: pos01-net
+    external: true
+  pos02-net:
+    name: pos02-net
+    external: true
+  online-net:
+    name: online-net
+    external: true
+  inventory-net:
+    name: inventory-net
+    external: true
+  kitchen-net:
+    name: kitchen-net
+    external: true
+  central-net:
+    name: central-net
+    external: true
+  api-net:
+    name: api-net

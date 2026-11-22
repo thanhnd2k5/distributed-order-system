@@ -1,16 +1,12 @@
 {
   "nav": {
-    "central": {
-      "root": "Central Operations",
-      "dashboard": "Central Dashboard",
-      "kitchen": "Central Kitchen",
-      "inventory": "Central Inventory"
-    },
-    "channels": {
-      "root": "Order Channels",
-      "pos01": "POS01 Counter",
-      "pos02": "POS02 Counter",
-      "online": "Online Ordering"
+    "operations": {
+      "root": "Order Operations",
+      "branch": "Branch (POS / Online)",
+      "kitchen": "Kitchen",
+      "inventory": "Inventory",
+      "reporting": "Management Report",
+      "demo": "Side-by-Side Demo"
     },
     "dashboards": {
       "dashboards": "Overview",

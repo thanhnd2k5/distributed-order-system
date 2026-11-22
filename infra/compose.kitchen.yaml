@@ -10,6 +10,10 @@ services:
       - "127.0.0.1:5436:5432"
     volumes:
       - kitchen-data:/var/lib/postgresql
+    networks:
+      kitchen-net:
+        aliases:
+          - kitchen-db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kitchen_app -d kitchen_db"]
       interval: 3s
@@ -17,3 +21,6 @@ services:
       retries: 20
 volumes:
   kitchen-data:
+networks:
+  kitchen-net:
+    name: kitchen-net

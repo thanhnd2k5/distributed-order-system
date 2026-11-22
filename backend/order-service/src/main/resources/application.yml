@@ -43,10 +43,22 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
-      ack-mode: record
+      ack-mode: manual_immediate
       auto-startup: ${KAFKA_LISTENER_AUTO_STARTUP:true}
 outbox:
   enabled: ${OUTBOX_ENABLED:false}
+order:
+  stale-threshold: ${ORDER_STALE_THRESHOLD:PT5M}
+  pending-inventory-alert-after: ${ORDER_PENDING_ALERT_AFTER:PT10M}
+  expiry-threshold: ${ORDER_EXPIRY_THRESHOLD:PT4H}
+  expiry-warning-before: ${ORDER_EXPIRY_WARNING_BEFORE:PT1H}
+  dlq-max-attempts: ${ORDER_DLQ_MAX_ATTEMPTS:5}
+  probe-timeout-ms: ${ORDER_PROBE_TIMEOUT_MS:1500}
+  send-timeout-ms: ${ORDER_SEND_TIMEOUT_MS:6000}
+  inventory-base-url: ${INVENTORY_BASE_URL:http://localhost:8084}
+  heartbeat-interval-ms: ${ORDER_HEARTBEAT_INTERVAL_MS:5000}
+  heartbeat-enabled: ${ORDER_HEARTBEAT_ENABLED:true}
+  cancel-message-cooking: "Cannot cancel: the kitchen has started cooking"
 site:
   id: ${SITE_ID:POS01}
   source-type: ${SOURCE_TYPE:POS}

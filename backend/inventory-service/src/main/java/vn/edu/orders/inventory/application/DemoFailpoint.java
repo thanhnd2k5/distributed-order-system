@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import vn.edu.orders.inventory.application.InventoryOrderService.OrderProcessingResult;
 import vn.edu.orders.inventory.config.DemoFailpointProperties;
 import vn.edu.orders.inventory.config.InventoryProperties;
 
@@ -22,7 +23,7 @@ public class DemoFailpoint {
         this.instanceId = inventoryProperties.instanceId();
     }
 
-    public void maybeHaltAfterCommit(ReservationResult result, int partition, long offset) {
+    public void maybeHaltAfterCommit(OrderProcessingResult result, int partition, long offset) {
         if (!properties.haltAfterCommitOnce() || !result.isNewlyApplied()) {
             return;
         }
@@ -38,14 +39,14 @@ public class DemoFailpoint {
             }
             Files.createFile(marker);
         } catch (FileAlreadyExistsException alreadyTriggered) {
-            log.info("Demo failpoint D08 marker already exists, skipping halt instanceId={} orderId={} eventId={} marker={}",
+            log.info("Demo failpoint marker already exists, skipping halt instanceId={} orderId={} eventId={} marker={}",
                     instanceId, result.orderId(), result.eventId(), marker.toAbsolutePath());
             return;
         } catch (IOException ex) {
-            throw new IllegalStateException("Failed creating D08 failpoint marker file " + marker, ex);
+            throw new IllegalStateException("Failed creating failpoint marker file " + marker, ex);
         }
 
-        log.error("DEMO FAILPOINT D08 triggered: halting JVM after DB commit and before offset ack instanceId={} orderId={} eventId={} partition={} offset={} marker={}",
+        log.error("DEMO FAILPOINT triggered: halting JVM after DB commit and before offset ack instanceId={} orderId={} eventId={} partition={} offset={} marker={}",
                 instanceId, result.orderId(), result.eventId(), partition, offset, marker.toAbsolutePath());
         Runtime.getRuntime().halt(137);
     }

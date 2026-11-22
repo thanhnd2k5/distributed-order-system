@@ -19,7 +19,9 @@ services:
     volumes:
       - central-data:/var/lib/postgresql
     networks:
-      default:
+      central-net:
+        aliases:
+          - central-db
       order-replication-net:
         aliases:
           - central-db
@@ -31,6 +33,8 @@ services:
 volumes:
   central-data:
 networks:
+  central-net:
+    name: central-net
   order-replication-net:
     name: order-replication-net
     external: true

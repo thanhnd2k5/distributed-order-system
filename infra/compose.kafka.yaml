@@ -2,11 +2,13 @@ name: distributed-order-kafka
 
 x-kafka: &kafka
   image: apache/kafka:4.1.2
+  networks:
+    - kafka-net
   healthcheck:
     test: ["CMD-SHELL", "KAFKA_HEAP_OPTS='-Xms32m -Xmx128m' /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null"]
     interval: 10s
     timeout: 8s
-    retries: 12
+    retries: 24
     start_period: 20s
 
 x-kafka-env: &kafka-env
@@ -25,6 +27,9 @@ x-kafka-env: &kafka-env
   KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
   KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
   KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+  KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: "false"
+  KAFKA_LOG_RETENTION_MS: 604800000
+  KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
 services:
   kafka-1:
@@ -54,18 +59,44 @@ services:
   kafka-init:
     image: apache/kafka:4.1.2
     profiles: [setup]
+    networks:
+      - kafka-net
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
     environment:
       KAFKA_HEAP_OPTS: "-Xms32m -Xmx128m"
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
-        for topic in order-events status-events; do
-          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1:9092,kafka-2:9092,kafka-3:9092 \
-            --create --if-not-exists --topic "$$topic" --partitions 3 \
-            --replication-factor 3 --config min.insync.replicas=2
+        BOOTSTRAP="kafka-1:9092,kafka-2:9092,kafka-3:9092"
+        create_topic() {
+          topic="$$1"
+          partitions="$$2"
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$$BOOTSTRAP" \
+            --create --if-not-exists --topic "$$topic" --partitions "$$partitions" \
+            --replication-factor 3 --config min.insync.replicas=2 --config retention.ms=604800000
+        }
+        for branch in POS01 POS02 ONLINE; do
+          create_topic "order-events.$${branch}" 2
+          create_topic "cancel-events.$${branch}" 2
+          create_topic "status-events.$${branch}" 1
         done
+        create_topic "kitchen-orders" 2
+        create_topic "stock-commands" 2
+        create_topic "menu-events" 1
+        create_topic "dlq" 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$$BOOTSTRAP" --describe
 
 volumes:
   kafka-1-data:
   kafka-2-data:
   kafka-3-data:
+
+networks:
+  kafka-net:
+    name: kafka-net

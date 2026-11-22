@@ -39,7 +39,7 @@ $sql = @"
 \set ON_ERROR_STOP on
 DO `$`$
 BEGIN
-    IF to_regclass('$Schema.kitchen_tickets') IS NULL THEN
+    IF to_regclass('$Schema.kitchen_orders') IS NULL AND to_regclass('$Schema.kitchen_tickets') IS NULL THEN
         RAISE EXCEPTION 'Schema "%" is not initialized with kitchen tables yet. Run kitchen-service once to apply Flyway migrations.', '$Schema';
     END IF;
 END
@@ -47,13 +47,18 @@ END
 BEGIN;
 SET LOCAL search_path TO $Schema;
 DELETE FROM outbox_events;
-DELETE FROM kitchen_ticket_items;
-DELETE FROM kitchen_tickets;
 DELETE FROM processed_events;
+DO `$`$
+BEGIN
+    IF to_regclass('$Schema.kitchen_orders') IS NOT NULL THEN DELETE FROM kitchen_orders; END IF;
+    IF to_regclass('$Schema.flagged_ingredients') IS NOT NULL THEN DELETE FROM flagged_ingredients; END IF;
+    IF to_regclass('$Schema.alerts') IS NOT NULL THEN DELETE FROM alerts; END IF;
+    IF to_regclass('$Schema.kitchen_ticket_items') IS NOT NULL THEN DELETE FROM kitchen_ticket_items; END IF;
+    IF to_regclass('$Schema.kitchen_tickets') IS NOT NULL THEN DELETE FROM kitchen_tickets; END IF;
+END
+`$`$;
 COMMIT;
 SELECT
-    (SELECT count(*) FROM $Schema.kitchen_tickets) AS tickets,
-    (SELECT count(*) FROM $Schema.kitchen_ticket_items) AS ticket_items,
     (SELECT count(*) FROM $Schema.processed_events) AS processed_events,
     (SELECT count(*) FROM $Schema.outbox_events) AS outbox_events;
 "@

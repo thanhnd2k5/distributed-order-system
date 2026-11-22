@@ -5,7 +5,7 @@ Mỗi người chạy stack local trên máy mình theo [hướng dẫn backend]
 
 | Phần | Có thể bắt đầu ngay | Điểm ghép |
 |---|---|---|
-| Frontend POS / Online / Kitchen / Inventory / Dashboard | Đã triển khai trên `react-starter-kit-zq/` (không auth; chạy Vite trên `http://localhost:5173`). Xem [README frontend](../react-starter-kit-zq/README.md). | Giữ nguyên `clientRequestId` khi retry, tách cache theo `siteId`, `withCredentials: false` khớp CORS backend. |
+| Frontend POS | Dùng API menu, tạo đơn, danh sách và chi tiết trên `localhost:8081`. Mock các trạng thái Kho/Bếp để làm giao diện. | Giữ nguyên `clientRequestId` khi retry, dùng ID mới cho lần đặt mới. Đọc trạng thái từ chi tiết đơn. |
 | Kafka và outbox | Chạy cụm Kafka và bật publisher của Order Service theo [hướng dẫn B2](../backend/README.md#chạy-kafka-cho-b2). | Key là `orderId`. Giữ nguyên event ID và JSON khi gửi lại. |
 | Inventory | Đã triển khai (B3) trên `localhost:8084` theo [hướng dẫn Inventory](../backend/README.md#inventory-service-b3). Đọc `order-events`, giữ tồn nguyên tử và phát `Reserved`/`Failed`. | Xuất Reserved hoặc Failed sau khi quyết định giữ hàng. |
 | Kitchen | Đã triển khai (B4) trên `localhost:8085` theo [hướng dẫn Kitchen](../backend/README.md#kitchen-service-b4--đồng-bộ-trạng-thái-đơn). Đọc `Reserved` từ `status-events`, tạo vé bếp `WAITING` và phát `Done` khi hoàn tất. | Chỉ tạo phiếu từ Reserved. Xuất Done khi hoàn tất. |
@@ -19,7 +19,7 @@ Mỗi người chạy stack local trên máy mình theo [hướng dẫn backend]
 | Failed | `status-events` | [failed.v1.json](contracts/events/failed.v1.json) |
 | Done | `status-events` | [done.v1.json](contracts/events/done.v1.json) |
 
-B1 ghi OrderCreated vào PostgreSQL, worker B2 gửi lên `order-events`, Inventory Service B3 xử lý giữ hàng nguyên tử rồi phát `Reserved`/`Failed` lên `status-events` (xem [bằng chứng B3](evidence/B3-2026-11-11/README.md)), Kitchen Service B4 xử lý vé bếp kèm đồng bộ ngược trạng thái về Order Service (xem [bằng chứng B4](evidence/B4-2026-11-11/README.md)), và B5 mở rộng đa nguồn (`POS01`/`POS02`/`ONLINE`) kèm PostgreSQL Logical Replication về `central-db` và `order-query-service` (xem [bằng chứng B5](evidence/B5-2026-11-12/README.md)). Frontend React (`react-starter-kit-zq/`) đã kết nối đầy đủ cả 6 service (`8080`–`8085`); các bài thử nhiều instance (D12, ví dụ ONLINE ×2) và bài thử lỗi bổ sung (D03/D07/D09/D10) để sang mốc tiếp theo.
+B1 ghi OrderCreated vào PostgreSQL, worker B2 gửi lên `order-events`, Inventory Service B3 xử lý giữ hàng nguyên tử rồi phát `Reserved`/`Failed` lên `status-events` (xem [bằng chứng B3](evidence/B3-2026-11-11/README.md)), Kitchen Service B4 xử lý vé bếp kèm đồng bộ ngược trạng thái về Order Service (xem [bằng chứng B4](evidence/B4-2026-11-11/README.md)), và B5 mở rộng đa nguồn (`POS01`/`POS02`/`ONLINE`) kèm PostgreSQL Logical Replication về `central-db` và `order-query-service` (xem [bằng chứng B5](evidence/B5-2026-11-12/README.md)). B5 đóng phạm vi backend + D11; dashboard React (`/dashboard`) và bài thử nhiều instance (D12, ví dụ ONLINE ×2) để sang mốc tiếp theo cùng các bài thử lỗi bổ sung (D03/D07/D09/D10).
 Dùng chuỗi OrderCreated → Reserved → Done cho ca thành công, và OrderCreated → Failed cho ca từ chối.
 Khi mô phỏng thêm đơn, thay `orderId` và tạo `eventId` riêng cho từng sự kiện.
 

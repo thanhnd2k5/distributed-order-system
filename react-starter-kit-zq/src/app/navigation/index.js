@@ -1,6 +1,5 @@
-import { central } from "./central";
-import { channels } from "./channels";
+import { operations } from "./operations";
 
-export const navigation = [central, channels];
+export const navigation = [operations];
 
 export { baseNavigation } from "./baseNavigation";

@@ -1,5 +1,6 @@
 package vn.edu.orders.inventory.api;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public record RecipeResponse(
@@ -14,7 +15,7 @@ public record RecipeResponse(
             String ingredientId,
             String ingredientName,
             String unit,
-            long quantityPerDish
+            BigDecimal quantityPerDish
     ) {
     }
 }

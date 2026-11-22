@@ -1,0 +1,15 @@
+{
+  "eventId": "c1f1a001-1111-4444-8888-000000000008",
+  "eventType": "IngredientCheckChanged",
+  "schemaVersion": 1,
+  "orderId": null,
+  "branchId": "INVENTORY",
+  "occurredAt": "2026-11-21T09:16:15Z",
+  "causationId": null,
+  "payload": {
+    "ingredientId": "THIT_GA",
+    "needsCheck": true,
+    "epoch": 1,
+    "seq": 3
+  }
+}

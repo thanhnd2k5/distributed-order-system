@@ -21,12 +21,13 @@ import { useDisclosure, useFuse } from "hooks";
 import { useThemeContext } from "app/contexts/theme/context";
 import { createScopedKeydownHandler } from "utils/dom/createScopedKeydownHandler";
 import { navigation } from "app/navigation";
+import { settings } from "app/navigation/settings";
 import { NAV_TYPE_COLLAPSE } from "constants/app.constant";
 import { Highlight } from "components/shared/Highlight";
 
 // ----------------------------------------------------------------------
 
-const data = flattenNav([...navigation]);
+const data = flattenNav([...navigation,settings]);
 
 export function Search({ renderButton }) {
   const [isOpen, { open, close }] = useDisclosure(false);
@@ -96,7 +97,7 @@ export function SearchDialog({ close }) {
         <div className="flex items-center justify-between pl-2 pr-4 rtl:pl-4 rtl:pr-2">
           <Input
             ref={searchRef}
-            placeholder="Tìm màn hình..."
+            placeholder="Search here..."
             value={query}
             data-search-item
             onChange={(event) => setQuery(event.target.value)}
@@ -123,7 +124,7 @@ export function SearchDialog({ close }) {
       {result.length === 0 && query !== "" && (
         <div className="flex flex-col overflow-y-auto py-4">
           <h3 className="px-4 text-gray-800 dark:text-dark-50 sm:px-5">
-            Không tìm thấy màn hình
+            No Result Found
           </h3>
         </div>
       )}
@@ -131,7 +132,7 @@ export function SearchDialog({ close }) {
       {result.length > 0 && (
         <div className="flex flex-col overflow-y-auto py-4">
           <h3 className="px-4 text-gray-800 dark:text-dark-50 sm:px-5">
-            Kết quả
+            Search Result
           </h3>
           <div className="space-y-3 px-4 pt-3">
             {result.map(({ item, refIndex }) => (

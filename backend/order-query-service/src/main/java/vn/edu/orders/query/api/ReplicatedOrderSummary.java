@@ -8,7 +8,12 @@ public record ReplicatedOrderSummary(
         String sourceSiteId,
         String sourceType,
         String status,
+        int statusRank,
         String failureReason,
+        String closeReason,
+        String cancelFlag,
+        Instant cancelRequestedAt,
+        String cancelMessage,
         long version,
         Instant createdAt,
         Instant updatedAt
